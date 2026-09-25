@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "tsc --project tsconfig.test.json && node --test .test-build/test/*.test.js"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",

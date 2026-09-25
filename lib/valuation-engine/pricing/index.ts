@@ -37,3 +37,15 @@ export function calculateValuation(
     high: Math.round(median * 1.15),
   };
 }
+
+export function calculateAiEstimate(conditionScore: number): Valuation {
+  const score = Number.isFinite(conditionScore) ? conditionScore : 50;
+  const estimatedValue = Math.round(450 + score * 4);
+
+  return {
+    currency: "NZD",
+    estimatedValue,
+    low: Math.round(estimatedValue * 0.85),
+    high: Math.round(estimatedValue * 1.15),
+  };
+}

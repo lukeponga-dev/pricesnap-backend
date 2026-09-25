@@ -17,7 +17,7 @@ export function buildSearchQueries(item: IdentifiedItem): string[] {
   const base = parts.length > 0 ? parts.join(" ") : name;
 
   const knownAttrs = Object.entries(attributes)
-    .filter(([, v]) => v && v.toLowerCase() !== "unknown")
+    .filter(([, v]) => v && !["unknown", "n/a", "unsure"].includes(v.toLowerCase()))
     .map(([, v]) => v);
 
   const attrSuffix = knownAttrs.join(" ");

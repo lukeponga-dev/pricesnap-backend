@@ -10,8 +10,21 @@ import type { CandidateListing, IdentifiedItem } from "../types";
 import { clamp } from "../ai/parse-json";
 
 /** Titles that look like accessory-only listings rather than the main item. */
-const ACCESSORY_RE =
-  /\b(case|cover|charger|cable|screen\s*protector|box\s*only|empty\s*box|tempered\s*glass|earpods?|airpods?|watch\s*band)\b/i;
+const ACCESSORY_TERMS = [
+  "case",
+  "cover",
+  "charger",
+  "cable",
+  "screen protector",
+  "box only",
+  "empty box",
+  "tempered glass",
+  "earpod",
+  "earpods",
+  "airpod",
+  "airpods",
+  "watch band",
+];
 
 /** Non-working / parts-only listings skew prices downward. */
 const BROKEN_RE =
@@ -39,7 +52,7 @@ export function validateCandidates(
     const title = candidate.title ?? "";
     const titleLower = title.toLowerCase();
 
-    if (ACCESSORY_RE.test(title)) continue;
+    if (isAccessoryOnlyListing(item, titleLower)) continue;
     if (BROKEN_RE.test(title)) continue;
     if (NEW_RETAIL_RE.test(title)) continue;
     if (candidate.currency && candidate.currency.toUpperCase() !== "NZD") {
@@ -62,6 +75,44 @@ export function validateCandidates(
   }
 
   return results;
+}
+
+function isAccessoryOnlyListing(
+  item: IdentifiedItem,
+  titleLower: string,
+): boolean {
+  const targetText = [
+    item.item.name,
+    item.item.category,
+    item.item.brand,
+    item.item.model,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const targetIsAccessory = ACCESSORY_TERMS.some((term) =>
+    targetText.includes(term),
+  );
+  if (targetIsAccessory) return false;
+
+  const hasAccessoryTerm = ACCESSORY_TERMS.some((term) =>
+    titleLower.includes(term),
+  );
+  if (!hasAccessoryTerm) return false;
+
+  const knownAttributeValues = Object.values(item.item.attributes).filter(
+    (value) => value && !["unknown", "n/a", "unsure"].includes(value.toLowerCase()),
+  );
+  const hasKnownAttribute =
+    knownAttributeValues.length === 0 ||
+    knownAttributeValues.some((value) =>
+      titleLower.replace(/\s+/g, "").includes(value.toLowerCase().replace(/\s+/g, "")),
+    );
+
+  if (!hasKnownAttribute) return true;
+
+  return scoreVariantMatch(item, titleLower) < 0.65;
 }
 
 /**

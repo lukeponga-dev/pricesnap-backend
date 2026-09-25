@@ -8,7 +8,6 @@
 
 /** Incoming photo payload from the client. */
 export interface ImageRequest {
-  /** Raw base64 or `data:image/...;base64,...` data URL. */
   imageBase64: string;
 }
 
@@ -19,13 +18,11 @@ export interface AppraisalResponse {
     brand?: string;
     model?: string;
     category: string;
-    /** Visible variant details (e.g. storage, colour). May include "Unknown". */
-    attributes?: Record<string, string>;
   };
 
   condition: {
     grade: string;
-    /** 0–100 visual condition score from identification. */
+    /** 0-100 visual condition score from identification. */
     score: number;
     notes: string[];
   };
@@ -33,13 +30,12 @@ export interface AppraisalResponse {
   valuation: {
     currency: "NZD";
     estimatedValue: number;
-    /** Soft band around the estimate (currently ±15% of median). */
     low: number;
     high: number;
   };
 
   confidence: {
-    /** 0–1 explainable score from evidence quality, not LLM self-rating alone. */
+    /** 0-1 explainable score from evidence quality, not LLM self-rating alone. */
     score: number;
     level: "low" | "medium" | "high";
   };
@@ -60,7 +56,7 @@ export interface Comparable {
 
 /**
  * Output of the identification step.
- * Separates “what we think it is” from pricing so the model never owns the sale price.
+ * Separates what we think it is from pricing so the model never owns the sale price.
  */
 export interface IdentifiedItem {
   item: {
@@ -75,7 +71,7 @@ export interface IdentifiedItem {
     score: number;
     notes: string[];
   };
-  /** Model’s certainty about identity only (feeds confidence, not price). */
+  /** Model certainty about identity only (feeds confidence, not price). */
   identificationConfidence: number;
 }
 
@@ -104,9 +100,9 @@ export interface MarketEvidence {
  * These fields are stripped before the public API response.
  */
 export interface ScoredComparable extends Comparable {
-  /** 0–1 how well title/attrs match the identified variant. */
+  /** 0-1 how well title/attrs match the identified variant. */
   variantMatch: number;
-  /** 0–1 freshness of the evidence (1 = recent). */
+  /** 0-1 freshness of the evidence (1 = recent). */
   freshness: number;
 }
 

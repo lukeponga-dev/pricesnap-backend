@@ -121,13 +121,13 @@ export async function identifyItem(
     item: {
       name: parsed.name || "Unknown",
       // Drop "Unknown" brand/model so the public payload stays clean.
-      brand: optionalKnown(parsed.brand),
-      model: optionalKnown(parsed.model),
-      category: parsed.category || "Unknown",
+      brand: normalizeValue(parsed.brand),
+      model: normalizeValue(parsed.model),
+      category: normalizeValue(parsed.category) ?? "Unknown",
       attributes,
     },
     condition: {
-      grade: parsed.condition.grade || "Unknown",
+      grade: normalizeValue(parsed.condition.grade) ?? "Unknown",
       score: clamp(Number(parsed.condition.score) || 50, 0, 100),
       // Map model "observations" onto AppraisalResponse.condition.notes.
       notes: parsed.condition.observations ?? [],
@@ -140,21 +140,24 @@ export async function identifyItem(
   };
 }
 
-/** Treat missing / "Unknown" as absent optional fields. */
-function optionalKnown(value: string | undefined): string | undefined {
+export function normalizeValue(value?: string): string | undefined {
   if (!value) return undefined;
-  if (value.trim().toLowerCase() === "unknown") return undefined;
-  return value.trim();
+  const normalized = value.trim();
+  if (["unknown", "n/a", "unsure"].includes(normalized.toLowerCase())) {
+    return undefined;
+  }
+  return normalized;
 }
 
-/** Keep non-empty attribute entries (including explicit "Unknown" values). */
+/** Keep only known, non-empty attribute entries. */
 function normalizeAttributes(
   attrs: Record<string, string>,
 ): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(attrs)) {
-    if (value == null || value === "") continue;
-    out[key] = value;
+    const normalized = normalizeValue(value);
+    if (!normalized) continue;
+    out[key] = normalized;
   }
   return out;
 }

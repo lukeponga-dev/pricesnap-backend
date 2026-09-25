@@ -1,43 +1,49 @@
 /**
- * PriceSnap valuation engine — public entry point.
+ * PriceSnap valuation engine - public entry point.
  *
- * Pipeline (do not collapse into one “what’s this worth?” LLM call):
+ * Pipeline:
+ *   image -> identifyItem -> findMarketEvidence -> calculateValuation
+ *         -> calculateConfidence -> AppraisalResponse
  *
- *   image → identifyItem → findMarketEvidence → calculateValuation
- *         → calculateConfidence → AppraisalResponse
- *
- * AI is used for identification and evidence interpretation only.
- * Price and confidence are calculated deterministically by this engine.
+ * Gemini identifies and interprets the item. Real evidence establishes the
+ * market. Deterministic code calculates the valuation and confidence.
  */
 import { calculateConfidence } from "./confidence";
 import { findMarketEvidence } from "./evidence";
 import { identifyItem } from "./identification";
-import { calculateValuation } from "./pricing";
+import { calculateAiEstimate, calculateValuation } from "./pricing";
+import { withTimeout } from "./timeout";
 import type { AppraisalResponse } from "./types";
 
 /**
- * Run a full appraisal for a single product photo (base64).
+ * Run a full appraisal for a single product photo.
  */
 export async function valuateImage(
   imageBase64: string,
 ): Promise<AppraisalResponse> {
-  // 1. What is it? (vision model — no price)
-  const identification = await identifyItem(imageBase64);
+  const identification = await withTimeout(
+    "Identification",
+    12_000,
+    identifyItem(imageBase64),
+  );
 
-  // 2. What does the market show? (queries → candidates → filters)
-  const evidence = await findMarketEvidence(identification);
+  const evidence = await withTimeout(
+    "Market retrieval",
+    8_000,
+    findMarketEvidence(identification),
+  );
 
-  // 3. What is a fair NZD band? (median of surviving comparables)
-  const valuation = calculateValuation(evidence.comparables);
+  const valuation =
+    evidence.comparables.length > 0
+      ? calculateValuation(evidence.comparables)
+      : calculateAiEstimate(identification.condition.score);
 
-  // 4. How trustworthy is that estimate? (evidence quality weights)
   const confidence = calculateConfidence(
     identification,
     evidence,
     valuation,
   );
 
-  // Strip internal scoring fields (variantMatch / freshness) from the API payload.
   return {
     item: {
       name: identification.item.name,
@@ -48,9 +54,6 @@ export async function valuateImage(
         ? { model: identification.item.model }
         : {}),
       category: identification.item.category,
-      ...(Object.keys(identification.item.attributes).length > 0
-        ? { attributes: identification.item.attributes }
-        : {}),
     },
     condition: identification.condition,
     valuation,

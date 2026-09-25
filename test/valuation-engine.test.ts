@@ -1,0 +1,112 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { validateCandidates } from "../lib/valuation-engine/evidence/validate.js";
+import { buildSearchQueries } from "../lib/valuation-engine/evidence/queries.js";
+import { normalizeValue } from "../lib/valuation-engine/identification/index.js";
+import { calculateAiEstimate, calculateValuation } from "../lib/valuation-engine/pricing/index.js";
+import type { IdentifiedItem, ScoredComparable } from "../lib/valuation-engine/types.js";
+
+const item: IdentifiedItem = {
+  item: {
+    name: "iPhone 13 Pro",
+    brand: "Apple",
+    model: "iPhone 13 Pro",
+    category: "phone",
+    attributes: { storage: "256GB" },
+  },
+  condition: { grade: "Good", score: 80, notes: [] },
+  identificationConfidence: 0.9,
+};
+
+test("market valuation uses median and marks market evidence", () => {
+  const valuation = calculateValuation([
+    comparable("A", 700),
+    comparable("B", 600),
+    comparable("C", 500),
+  ]);
+
+  assert.deepEqual(valuation, {
+    currency: "NZD",
+    estimatedValue: 600,
+    low: 510,
+    high: 690,
+  });
+});
+
+test("ai estimate returns a deterministic fallback band", () => {
+  const valuation = calculateAiEstimate(50);
+
+  assert.equal(valuation.currency, "NZD");
+  assert.equal(valuation.estimatedValue, 650);
+});
+
+test("unknown-like values normalize to absence", () => {
+  assert.equal(normalizeValue("Unknown"), undefined);
+  assert.equal(normalizeValue(" n/a "), undefined);
+  assert.equal(normalizeValue("Unsure"), undefined);
+  assert.equal(normalizeValue("256GB"), "256GB");
+});
+
+test("query construction omits unknown-like attributes", () => {
+  const queries = buildSearchQueries({
+    ...item,
+    item: {
+      ...item.item,
+      attributes: { storage: "256GB", colour: "n/a" },
+    },
+  });
+
+  assert.ok(queries.every((query) => !query.toLowerCase().includes("n/a")));
+  assert.ok(queries.some((query) => query.includes("256GB")));
+});
+
+test("candidate filtering is item-aware for accessories", () => {
+  const candidates = validateCandidates(item, [
+    listing("iPhone 13 Pro 256GB with case", 650),
+    listing("iPhone 13 Pro leather case", 25),
+  ]);
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].title, "iPhone 13 Pro 256GB with case");
+});
+
+test("candidate filtering allows accessories when target item is an accessory", () => {
+  const candidates = validateCandidates(
+    {
+      ...item,
+      item: {
+        name: "iPhone 13 Pro leather case",
+        brand: "Apple",
+        model: "iPhone 13 Pro",
+        category: "phone case",
+        attributes: {},
+      },
+    },
+    [listing("Apple iPhone 13 Pro leather case", 25)],
+  );
+
+  assert.equal(candidates.length, 1);
+});
+
+function comparable(title: string, price: number): ScoredComparable {
+  return {
+    title,
+    price,
+    currency: "NZD",
+    source: "Trade Me",
+    url: "https://example.test/listing",
+    variantMatch: 0.9,
+    freshness: 0.9,
+  };
+}
+
+function listing(title: string, price: number) {
+  return {
+    title,
+    price,
+    currency: "NZD",
+    source: "Trade Me",
+    url: "https://example.test/listing",
+  };
+}
