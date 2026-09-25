@@ -13,19 +13,16 @@ let client: GoogleGenAI | null = null;
 
 /**
  * Lazy singleton so importing this module does not require the key until used.
- * Prefers `AI_API_KEY`; falls back to Gemini/Google naming for local setups.
+ * Uses the Gemini-specific env var name so deployments stay explicit.
  */
 export function getAiClient(): GoogleGenAI {
   if (client) return client;
 
-  const apiKey =
-    process.env.AI_API_KEY ??
-    process.env.GEMINI_API_KEY ??
-    process.env.GOOGLE_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     throw new Error(
-      "Missing AI_API_KEY. Add it to .env.local on the PriceSnap backend only.",
+      "Missing GEMINI_API_KEY. Add it to .env.local on the PriceSnap backend only.",
     );
   }
 
