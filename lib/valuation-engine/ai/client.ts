@@ -1,13 +1,19 @@
+/**
+ * Gemini client (server-side only).
+ *
+ * API keys must live in backend env (`.env.local`), never in:
+ * Android BuildConfig, local.properties, APK, Retrofit, or GitHub.
+ */
 import { GoogleGenAI } from "@google/genai";
 
-/** Fast multimodal Gemini model for identification and market interpretation. */
+/** Multimodal model used for identification and provisional evidence retrieval. */
 export const MODEL = "gemini-flash-latest";
 
 let client: GoogleGenAI | null = null;
 
 /**
- * Server-side only. Reads AI_API_KEY (preferred) or GEMINI_API_KEY / GOOGLE_API_KEY.
- * Never expose this to Android / Retrofit / client builds.
+ * Lazy singleton so importing this module does not require the key until used.
+ * Prefers `AI_API_KEY`; falls back to Gemini/Google naming for local setups.
  */
 export function getAiClient(): GoogleGenAI {
   if (client) return client;

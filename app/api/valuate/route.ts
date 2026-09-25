@@ -1,35 +1,37 @@
+/**
+ * POST /api/valuate
+ *
+ * Thin HTTP adapter for the Android app (and other clients).
+ * All appraisal logic lives in `lib/valuation-engine` — this file only
+ * validates the request body, calls `valuateImage`, and maps errors to HTTP.
+ *
+ * Never put AI keys or provider SDKs here; clients only know this backend URL.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { valuateImage } from "@/lib/valuation-engine";
-import type { ImageRequest } from "@/lib/valuation-engine/types";
 
 export async function POST(request: NextRequest) {
-  let body: ImageRequest;
-
   try {
-    body = (await request.json()) as ImageRequest;
-  } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-  }
+    const body = await request.json();
 
-  if (!body.imageBase64) {
-    return NextResponse.json({ error: "Image is required" }, { status: 400 });
-  }
+    // Clients send either raw base64 or a data-URL (`data:image/...;base64,...`).
+    if (!body.imageBase64 || typeof body.imageBase64 !== "string") {
+      return NextResponse.json(
+        { error: "imageBase64 is required" },
+        { status: 400 },
+      );
+    }
 
-  try {
     const appraisal = await valuateImage(body.imageBase64);
     return NextResponse.json(appraisal);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Valuation failed";
+    // Log the real failure server-side; keep the client message generic
+    // so provider/API details are not leaked.
+    console.error("Valuation error:", error);
 
-    if (message.includes("AI_API_KEY")) {
-      return NextResponse.json({ error: message }, { status: 500 });
-    }
-
-    if (message.includes("Insufficient market evidence")) {
-      return NextResponse.json({ error: message }, { status: 422 });
-    }
-
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json(
+      { error: "Unable to complete valuation" },
+      { status: 500 },
+    );
   }
 }

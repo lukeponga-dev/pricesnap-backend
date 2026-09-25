@@ -1,8 +1,18 @@
+/**
+ * Search-query construction for market evidence.
+ *
+ * Builds NZ-focused used-goods strings from brand/model/attributes.
+ * Omits attributes marked "Unknown" so we don't poison Trade Me-style searches.
+ */
 import type { IdentifiedItem } from "../types";
 
-/** Build NZ-focused used-goods search queries from identification. */
+/**
+ * Example: Apple iPhone 13 Pro + 256GB → "Apple iPhone 13 Pro 256GB used NZ"
+ */
 export function buildSearchQueries(item: IdentifiedItem): string[] {
   const { brand, model, name, attributes } = item.item;
+
+  // Prefer brand + model; fall back to free-text name when either is missing.
   const parts = [brand, model].filter(Boolean);
   const base = parts.length > 0 ? parts.join(" ") : name;
 
@@ -19,5 +29,6 @@ export function buildSearchQueries(item: IdentifiedItem): string[] {
     `${base} ${attrSuffix} second hand New Zealand`.trim(),
   ];
 
+  // De-dupe after whitespace normalization.
   return [...new Set(queries.map((q) => q.replace(/\s+/g, " ").trim()))];
 }

@@ -1,3 +1,11 @@
+/**
+ * Identification step — vision model only.
+ *
+ * Responsibility: name the item, attributes, and condition from the photo.
+ * Explicitly does NOT estimate resale value; pricing comes later from evidence.
+ *
+ * Prefer the string "Unknown" over inventing model / storage / colour variants.
+ */
 import {
   createPartFromBase64,
   createPartFromText,
@@ -8,6 +16,7 @@ import { parseImageBase64 } from "../ai/image";
 import { clamp, parseModelJson } from "../ai/parse-json";
 import type { IdentifiedItem } from "../types";
 
+/** Structured-output schema so Gemini returns stable JSON for the pipeline. */
 const identifySchema = {
   type: Type.OBJECT,
   properties: {
@@ -59,6 +68,7 @@ const identifySchema = {
   ],
 };
 
+/** Raw JSON shape from the model before we normalize into IdentifiedItem. */
 interface IdentifyModelResponse {
   name: string;
   brand?: string;
@@ -74,8 +84,7 @@ interface IdentifyModelResponse {
 }
 
 /**
- * Vision identification only — never invents a final sale price.
- * Prefer "Unknown" over guessing model / storage / variant details.
+ * Identify the product in `imageBase64` for later market valuation.
  */
 export async function identifyItem(
   imageBase64: string,
@@ -92,7 +101,7 @@ export async function identifyItem(
           "Identify the item in this photo for later market valuation.",
           "Do NOT estimate a resale price.",
           "Only report attributes you can see or that are clearly labeled.",
-          'If brand, model, storage, colour, or other variant details are unclear,',
+          "If brand, model, storage, colour, or other variant details are unclear,",
           'set that field to "Unknown" — never invent a specific variant.',
           "Assess condition from visible wear only.",
         ].join(" "),
@@ -111,6 +120,7 @@ export async function identifyItem(
   return {
     item: {
       name: parsed.name || "Unknown",
+      // Drop "Unknown" brand/model so the public payload stays clean.
       brand: optionalKnown(parsed.brand),
       model: optionalKnown(parsed.model),
       category: parsed.category || "Unknown",
@@ -119,6 +129,7 @@ export async function identifyItem(
     condition: {
       grade: parsed.condition.grade || "Unknown",
       score: clamp(Number(parsed.condition.score) || 50, 0, 100),
+      // Map model "observations" onto AppraisalResponse.condition.notes.
       notes: parsed.condition.observations ?? [],
     },
     identificationConfidence: clamp(
@@ -129,12 +140,14 @@ export async function identifyItem(
   };
 }
 
+/** Treat missing / "Unknown" as absent optional fields. */
 function optionalKnown(value: string | undefined): string | undefined {
   if (!value) return undefined;
   if (value.trim().toLowerCase() === "unknown") return undefined;
   return value.trim();
 }
 
+/** Keep non-empty attribute entries (including explicit "Unknown" values). */
 function normalizeAttributes(
   attrs: Record<string, string>,
 ): Record<string, string> {

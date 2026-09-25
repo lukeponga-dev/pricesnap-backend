@@ -1,3 +1,15 @@
+/**
+ * Confidence step — explainable score from evidence quality.
+ *
+ * Intentionally not “how sure the LLM feels”. Weights reflect how much we
+ * trust identity, sample size, price agreement, variant fit, and freshness.
+ *
+ *   Identification confidence  30%
+ *   Comparable count           25%
+ *   Price consistency          20%
+ *   Variant matching           15%
+ *   Evidence freshness         10%
+ */
 import { clamp } from "../ai/parse-json";
 import type {
   Confidence,
@@ -7,14 +19,7 @@ import type {
 } from "../types";
 
 /**
- * Explainable confidence from evidence quality — not LLM "vibes".
- *
- * Weights:
- *   Identification confidence  30%
- *   Comparable count           25%
- *   Price consistency          20%
- *   Variant matching           15%
- *   Evidence freshness         10%
+ * Combine identification + evidence signals into a 0–1 score and level label.
  */
 export function calculateConfidence(
   identification: IdentifiedItem,
@@ -49,6 +54,7 @@ export function calculateConfidence(
   };
 }
 
+/** More surviving comps → higher trust (diminishing returns after ~6). */
 function comparableCountScore(count: number): number {
   if (count >= 6) return 1;
   if (count >= 4) return 0.85;
@@ -58,6 +64,10 @@ function comparableCountScore(count: number): number {
   return 0;
 }
 
+/**
+ * Coefficient of variation (stdev / estimate): tight clusters score higher.
+ * A single comparable gets a modest fixed score — not enough to claim “high”.
+ */
 function priceConsistencyScore(prices: number[], estimated: number): number {
   if (prices.length < 2 || estimated <= 0) return prices.length === 1 ? 0.4 : 0;
 

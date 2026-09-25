@@ -1,3 +1,15 @@
+/**
+ * Market evidence step — turns identification into priced comparables.
+ *
+ * Flow:
+ *   1. buildSearchQueries   — deterministic query strings from the item
+ *   2. retrieveCandidates   — fetch listing-like candidates (adapter swap point)
+ *   3. validateCandidates   — reject accessories, wrong variants, non-NZD, etc.
+ *   4. normalizeComparables — NZD integers + quality scores for confidence
+ *
+ * Today `retrieveCandidates` uses Gemini as a stand-in for live Trade Me /
+ * Marketplace search. Replace that function later without changing pricing.
+ */
 import { Type } from "@google/genai";
 import { getAiClient, MODEL } from "../ai/client";
 import { parseModelJson } from "../ai/parse-json";
@@ -44,12 +56,7 @@ interface CandidatesModelResponse {
 }
 
 /**
- * Market evidence pipeline:
- * construct queries → retrieve candidates → validate → normalize → comparables.
- *
- * Retrieval currently uses model knowledge of typical NZ listings as a stand-in
- * until live Trade Me / Marketplace adapters are wired in. Validation remains
- * deterministic so bad variants are still rejected.
+ * Gather and filter NZD market evidence for an identified item.
  */
 export async function findMarketEvidence(
   item: IdentifiedItem,
@@ -62,6 +69,12 @@ export async function findMarketEvidence(
   return { searchQueries, comparables };
 }
 
+/**
+ * Retrieve candidate listings for the search queries.
+ *
+ * Temporary: model proposes realistic used NZ listings from training knowledge.
+ * Swap for live marketplace APIs when available — keep the same return type.
+ */
 async function retrieveCandidates(
   item: IdentifiedItem,
   searchQueries: string[],
@@ -112,6 +125,7 @@ async function retrieveCandidates(
   }));
 }
 
+/** Round prices, force NZD, attach scores, sort ascending for median pricing. */
 function normalizeComparables(
   validated: Array<
     CandidateListing & { variantMatch: number; freshness: number }
