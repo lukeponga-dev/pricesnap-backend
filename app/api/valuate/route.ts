@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { ImageRequest } from "@/lib/valuation-engine/types";
+import { ApiError, apiErrorResponse } from "../../../lib/api/errors";
+import { validateValuateRequest } from "../../../lib/validation/valuate-request";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as ImageRequest;
-
-    if (!body.imageBase64 || typeof body.imageBase64 !== "string") {
-      return NextResponse.json(
-        {
-          error: "imageBase64 is required",
-        },
-        { status: 400 },
-      );
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new ApiError("INVALID_REQUEST");
+      throw error;
     }
+    validateValuateRequest(body);
 
     return NextResponse.json(
       {
@@ -39,12 +38,10 @@ export async function POST(request: NextRequest) {
         generatedAt: new Date().toISOString(),
       },
     );
-  } catch {
-    return NextResponse.json(
-      {
-        error: "Invalid request",
-      },
-      { status: 400 },
-    );
+  } catch (error) {
+    if (!(error instanceof ApiError)) {
+      console.error("PriceSnap valuation error:", error);
+    }
+    return apiErrorResponse(error);
   }
 }

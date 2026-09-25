@@ -20,11 +20,12 @@ import type { AppraisalResponse } from "./types";
  */
 export async function valuateImage(
   imageBase64: string,
+  mimeType: string,
 ): Promise<AppraisalResponse> {
   const identification = await withTimeout(
     "Identification",
     12_000,
-    identifyItem(imageBase64),
+    identifyItem(imageBase64, mimeType),
   );
 
   const evidence = await withTimeout(

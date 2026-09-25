@@ -2,6 +2,33 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Valuation request contract
+
+`POST /api/valuate` currently returns a fixed **test valuation** after validating
+the request. It does not invoke Gemini or retrieve marketplace listings.
+
+Send JSON with `imageBase64` and a required `mimeType` (`image/jpeg`, `image/png`,
+or `image/webp`). Use standard Base64 with padding and no whitespace, or a data
+URL whose MIME type matches `mimeType`. The decoded payload limit is 8 MiB.
+Validation checks Base64 encoding, not image decodability or file signatures.
+
+Android callers must add `val mimeType: String` to `ImageRequest` and pass the
+actual encoded image's MIME type. When using Android's Base64 encoder, select
+`Base64.NO_WRAP` (keep padding enabled).
+
+Errors have the shape `{ "error": "Invalid image", "code": "INVALID_IMAGE" }`:
+
+| Code | HTTP status |
+| --- | --- |
+| INVALID_REQUEST | 400 |
+| INVALID_IMAGE | 400 |
+| INVALID_MIME_TYPE | 400 |
+| IMAGE_TOO_LARGE | 413 |
+| VALUATION_FAILED | 502 |
+
+Authentication, rate limiting, and engine integration are subsequent steps.
+Run `npm test` to check validation, route responses, and deterministic engine modules.
+
 First, run the development server:
 
 ```bash

@@ -7,9 +7,7 @@
  */
 
 /** Incoming photo payload from the client. */
-export interface ImageRequest {
-  imageBase64: string;
-}
+export type { ValuateRequest as ImageRequest } from "../validation/valuate-request";
 
 /** Public appraisal result returned by `valuateImage` / POST /api/valuate. */
 export interface AppraisalResponse {

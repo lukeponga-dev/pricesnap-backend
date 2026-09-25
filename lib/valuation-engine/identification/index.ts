@@ -88,8 +88,9 @@ interface IdentifyModelResponse {
  */
 export async function identifyItem(
   imageBase64: string,
+  providedMimeType: string,
 ): Promise<IdentifiedItem> {
-  const { data, mimeType } = parseImageBase64(imageBase64);
+  const { data, mimeType } = parseImageBase64(imageBase64, providedMimeType);
   const ai = getAiClient();
 
   const response = await ai.models.generateContent({
