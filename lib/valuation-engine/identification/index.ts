@@ -11,7 +11,7 @@ import {
   createPartFromText,
   Type,
 } from "@google/genai";
-import { getAiClient, MODEL } from "../ai/client";
+import { getAiClient, getModel } from "../ai/client";
 import { parseImageBase64 } from "../ai/image";
 import { clamp, parseModelJson } from "../ai/parse-json";
 import type { IdentifiedItem } from "../types";
@@ -89,12 +89,13 @@ interface IdentifyModelResponse {
 export async function identifyItem(
   imageBase64: string,
   providedMimeType: string,
+  signal?: AbortSignal,
 ): Promise<IdentifiedItem> {
   const { data, mimeType } = parseImageBase64(imageBase64, providedMimeType);
   const ai = getAiClient();
 
   const response = await ai.models.generateContent({
-    model: MODEL,
+    model: getModel(),
     contents: [
       createPartFromText(
         [
@@ -110,12 +111,22 @@ export async function identifyItem(
       createPartFromBase64(data, mimeType),
     ],
     config: {
+      abortSignal: signal,
       responseMimeType: "application/json",
       responseSchema: identifySchema,
     },
   });
 
   const parsed = parseModelJson<IdentifyModelResponse>(response.text);
+  if (!parsed || typeof parsed.name !== "string" || !parsed.name.trim() ||
+      typeof parsed.category !== "string" || !parsed.condition ||
+      typeof parsed.condition.grade !== "string" ||
+      typeof parsed.condition.score !== "number" || !Number.isFinite(parsed.condition.score) ||
+      !Array.isArray(parsed.condition.observations) ||
+      !parsed.condition.observations.every(v => typeof v === "string") ||
+      typeof parsed.identificationConfidence !== "number" || !Number.isFinite(parsed.identificationConfidence)) {
+    throw new Error("Invalid identification response");
+  }
   const attributes = normalizeAttributes(parsed.attributes ?? {});
 
   return {
@@ -129,7 +140,7 @@ export async function identifyItem(
     },
     condition: {
       grade: normalizeValue(parsed.condition.grade) ?? "Unknown",
-      score: clamp(Number(parsed.condition.score) || 50, 0, 100),
+      score: clamp(Number(parsed.condition.score) || 0, 0, 100),
       // Map model "observations" onto AppraisalResponse.condition.notes.
       notes: parsed.condition.observations ?? [],
     },
@@ -142,7 +153,7 @@ export async function identifyItem(
 }
 
 export function normalizeValue(value?: string): string | undefined {
-  if (!value) return undefined;
+  if (typeof value !== "string" || !value.trim()) return undefined;
   const normalized = value.trim();
   if (["unknown", "n/a", "unsure"].includes(normalized.toLowerCase())) {
     return undefined;
@@ -162,3 +173,4 @@ function normalizeAttributes(
   }
   return out;
 }
+

@@ -108,3 +108,12 @@ function listing(title: string, price: number) {
   };
 }
 
+
+
+test("rejects missing currency, unrelated products and conflicting storage", () => {
+  assert.deepEqual(validateCandidates(item, [
+    { ...listing("iPhone 13 Pro 256GB", 600), currency: "" },
+    listing("Samsung Galaxy 256GB", 600),
+    listing("iPhone 13 Pro 128GB", 600),
+  ]), []);
+});

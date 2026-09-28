@@ -6,7 +6,7 @@ export interface ValuateRequest {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
 }
 
-// Match the shared engine and fit its hosted JSON payload limit.
+// Keep the JSON payload below the hosting request limit.
 export const MAX_IMAGE_BYTES = 3_000_000;
 const MAX_BASE64_LENGTH = Math.ceil(MAX_IMAGE_BYTES / 3) * 4;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -15,7 +15,12 @@ export function validateValuateRequest(body: unknown): ValuateRequest {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new ApiError("INVALID_REQUEST");
   }
-  const request = body as Record<string, unknown>;
+  const request = { ...body } as Record<string, unknown>;
+  // Preserve imageBase64 + mimeType, and accept the documented image alias.
+  if (request.imageBase64 === undefined && typeof request.image === "string") {
+    request.imageBase64 = request.image;
+    request.mimeType ??= request.image.match(/^data:(image\/(?:jpeg|png|webp));base64,/)?.[1] ?? "image/jpeg";
+  }
   if (typeof request.imageBase64 !== "string" || !request.imageBase64) {
     throw new ApiError("INVALID_IMAGE");
   }
@@ -42,3 +47,4 @@ export function validateValuateRequest(body: unknown): ValuateRequest {
 
   return { imageBase64: data, mimeType: mimeType as ValuateRequest["mimeType"] };
 }
+

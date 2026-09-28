@@ -52,10 +52,13 @@ export function validateCandidates(
     const title = candidate.title ?? "";
     const titleLower = title.toLowerCase();
 
+    const identity = item.item.model || item.item.name;
+    if (!containsTokens(titleLower, identity.toLowerCase())) continue;
+    if (item.item.attributes.storage && looksLikeConflictingStorage(titleLower, item.item.attributes.storage)) continue;
     if (isAccessoryOnlyListing(item, titleLower)) continue;
     if (BROKEN_RE.test(title)) continue;
     if (NEW_RETAIL_RE.test(title)) continue;
-    if (candidate.currency && candidate.currency.toUpperCase() !== "NZD") {
+    if (candidate.currency !== "NZD") {
       continue;
     }
     if (INTL_CURRENCY_RE.test(title)) continue;
@@ -117,17 +120,17 @@ function isAccessoryOnlyListing(
 
 /**
  * Heuristic overlap between identified item and listing title.
- * Starts at a baseline and adjusts for brand/model/attribute hits or conflicts.
+ * Requires identity overlap and scores brand/model/attribute hits or conflicts.
  */
 function scoreVariantMatch(item: IdentifiedItem, titleLower: string): number {
-  let score = 0.4;
+  let score = 0;
 
   const model = item.item.model?.toLowerCase();
   const brand = item.item.brand?.toLowerCase();
   const name = item.item.name.toLowerCase();
 
-  if (model && titleLower.includes(model.toLowerCase())) score += 0.25;
-  else if (name && containsTokens(titleLower, name)) score += 0.15;
+  if (model && titleLower.includes(model.toLowerCase())) score += 0.6;
+  else if (name && containsTokens(titleLower, name)) score += 0.5;
 
   if (brand && titleLower.includes(brand)) score += 0.1;
 
@@ -192,3 +195,4 @@ function scoreFreshness(listedAt: string | undefined): number {
   if (ageDays <= 180) return 0.35;
   return 0.2;
 }
+

@@ -15,7 +15,6 @@ export function createValuateHandler(engine = valuateImage) {
       const input = validateValuateRequest(body);
       const result = await engine(input.imageBase64, input.mimeType, {
         signal: request.signal,
-        requestUrl: request.url,
       });
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
@@ -24,3 +23,4 @@ export function createValuateHandler(engine = valuateImage) {
     }
   };
 }
+
