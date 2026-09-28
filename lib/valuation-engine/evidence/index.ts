@@ -8,7 +8,8 @@
  *   4. normalizeComparables - NZD integers + quality scores for confidence
  *
  * Do not use a model to synthesize market comparables. Until live retrieval is
- * available, this module returns no comparables and pricing uses `ai_estimate`.
+ * available, this legacy module returns no comparables. The active public entry
+ * point delegates retrieval and pricing to the shared pricesnapai service.
  */
 import type {
   CandidateListing,

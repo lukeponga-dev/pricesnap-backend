@@ -6,7 +6,8 @@ export interface ValuateRequest {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
 }
 
-export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// Match the shared engine and fit its hosted JSON payload limit.
+export const MAX_IMAGE_BYTES = 3_000_000;
 const MAX_BASE64_LENGTH = Math.ceil(MAX_IMAGE_BYTES / 3) * 4;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 

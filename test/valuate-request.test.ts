@@ -33,7 +33,7 @@ test("rejects malformed bodies, images, MIME types and conflicting data URLs", (
   assert.throws(() => validateValuateRequest({ ...valid, imageBase64: `data:image/jpeg;base64,${imageBase64}` }), { message: "INVALID_MIME_TYPE" });
 });
 
-test("enforces exact decoded 8 MiB boundary, including data URL overhead", () => {
+test("enforces exact decoded 3,000,000-byte boundary, including data URL overhead", () => {
   const maximum = Buffer.alloc(MAX_IMAGE_BYTES).toString("base64");
   assert.equal(validateValuateRequest({ ...valid, imageBase64: maximum }).imageBase64, maximum);
   assert.equal(validateValuateRequest({ ...valid, imageBase64: `data:image/png;base64,${maximum}` }).imageBase64, maximum);
@@ -52,19 +52,18 @@ test("error responses use stable codes without leaking arbitrary error messages"
   assert.equal(apiErrorResponse(new ApiError("INSUFFICIENT_EVIDENCE")).status, 422);
 });
 
-test("POST rejects invalid requests and preserves the current test response for valid requests", async () => {
+test("POST rejects invalid requests before calling the engine", async () => {
   for (const [body, status, code] of [
     ["{", 400, "INVALID_REQUEST"],
     ["null", 400, "INVALID_REQUEST"],
     [JSON.stringify({ imageBase64 }), 400, "INVALID_MIME_TYPE"],
     [JSON.stringify({ ...valid, imageBase64: "bad!" }), 400, "INVALID_IMAGE"],
     [JSON.stringify({ ...valid, imageBase64: Buffer.alloc(MAX_IMAGE_BYTES + 1).toString("base64") }), 413, "IMAGE_TOO_LARGE"],
-    [JSON.stringify(valid), 200, undefined],
   ] as const) {
     const response = await POST(new NextRequest("http://localhost/api/valuate", { method: "POST", body }));
     assert.equal(response.status, status);
     const json = await response.json();
     assert.equal(json.code, code);
-    if (status === 200) assert.equal(json.item.name, "Test Item");
   }
 });
+
