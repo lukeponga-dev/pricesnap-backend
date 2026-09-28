@@ -8,29 +8,25 @@ interface BackendStatus {
   version: string;
   nodeVersion?: string;
   environment: string;
-  engineTarget: string;
   serverTime: string;
   uptimeSeconds: number;
-  clientCheckDurationMs: number;
 }
 
-interface UpstreamStatus {
-  connected: boolean;
+interface EngineStatus {
   status: string;
-  statusCode?: number;
-  latencyMs?: number;
-  service?: string;
-  hasApiKey?: boolean;
-  engineVersion?: string;
-  error?: string;
-  healthUrl: string;
+  service: string;
+  hasApiKey: boolean;
+  engineVersion: string;
+  model: string;
+  geminiLatencyMs: number | null;
+  providerChecked: boolean;
 }
 
 interface ConnectionData {
   ok: boolean;
   timestamp: number;
   backend: BackendStatus;
-  upstream: UpstreamStatus;
+  engine: EngineStatus;
 }
 
 interface LogEntry {
@@ -128,7 +124,7 @@ export default function Home() {
       });
       const latency = Math.round(performance.now() - start);
 
-      if (!res.ok) {
+      if (!res.ok && res.status !== 503) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
 
@@ -139,11 +135,11 @@ export default function Home() {
       addLog({
         type: "connection",
         endpoint: "/api/connection",
-        status: json.upstream.connected ? "success" : "error",
+        status: json.engine.hasApiKey ? "success" : "error",
         latencyMs: latency,
-        message: json.upstream.connected
-          ? `Connected to backend & upstream (${json.upstream.latencyMs ?? latency}ms upstream)`
-          : `Backend online, upstream unreachable (${json.upstream.error || "unknown error"})`,
+        message: json.engine.hasApiKey
+          ? `Backend online; internal engine configured (provider not tested)`
+          : `Backend online, internal engine not configured (Gemini key missing)`,
         details: json,
       });
     } catch (err: unknown) {
@@ -177,7 +173,7 @@ export default function Home() {
         });
         const latency = Math.round(performance.now() - start);
 
-        if (!res.ok) {
+        if (!res.ok && res.status !== 503) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
 
@@ -188,11 +184,11 @@ export default function Home() {
         addLog({
           type: "connection",
           endpoint: "/api/connection",
-          status: json.upstream.connected ? "success" : "error",
+          status: json.engine.hasApiKey ? "success" : "error",
           latencyMs: latency,
-          message: json.upstream.connected
-            ? `Initial connection OK (${json.upstream.latencyMs ?? latency}ms upstream)`
-            : `Backend online, upstream unreachable`,
+          message: json.engine.hasApiKey
+            ? `Backend online; internal engine configured (provider not tested)`
+            : `Backend online, internal engine not configured`,
           details: json,
         });
       } catch (err: unknown) {
@@ -435,7 +431,7 @@ export default function Home() {
         type: "valuate",
         endpoint: "/api/valuate",
         status: "pending",
-        message: `Forwarding image (${Math.round((testImageBase64.length * 3) / 4 / 1024)} KB) to PriceSnap engine...`,
+        message: `Analysing image (${Math.round((testImageBase64.length * 3) / 4 / 1024)} KB) to PriceSnap engine...`,
       });
 
       const res = await fetch("/api/valuate", {
@@ -450,7 +446,7 @@ export default function Home() {
       const latency = Math.round(performance.now() - start);
       const json = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok && res.status !== 503) {
         throw new Error(json.error || `HTTP ${res.status}: ${json.code || "VALUATION_FAILED"}`);
       }
 
@@ -484,9 +480,9 @@ export default function Home() {
     setTimeout(() => setCopiedSnippet(null), 2500);
   };
 
-  const isUpstreamHealthy = data?.upstream.connected && data.upstream.status === "ready";
+  const isEngineConfigured = data?.engine.hasApiKey && data.engine.status === "configured";
   const isBackendHealthy = data?.backend.status === "online";
-  const overallConnected = isBackendHealthy && (isUpstreamHealthy || data?.upstream.connected);
+  const overallConnected = isBackendHealthy && (isEngineConfigured || data?.engine.hasApiKey);
 
   return (
     <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/20 selection:text-cyan-300">
@@ -519,7 +515,7 @@ export default function Home() {
                   v0.1.0
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Android Compatibility Adapter & Engine Gateway</p>
+              <p className="text-xs text-slate-400">Android Internal Valuation API</p>
             </div>
           </div>
 
@@ -551,9 +547,9 @@ export default function Home() {
                   ? "All Systems Connected"
                   : "Connection Degraded"}
               </span>
-              {data?.upstream.latencyMs !== undefined && (
+              {data?.engine.geminiLatencyMs != null && (
                 <span className="text-[11px] font-mono opacity-80 pl-1 border-l border-emerald-500/30">
-                  ⚡ {data.upstream.latencyMs}ms RTT
+                  ⚡ {data.engine.geminiLatencyMs}ms RTT
                 </span>
               )}
             </div>
@@ -692,7 +688,7 @@ export default function Home() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white">PriceSnap Backend</h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">Compatibility Adapter</p>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">Internal Valuation API</p>
               </div>
               <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-900 flex justify-between">
                 <span>Next.js 16</span>
@@ -700,11 +696,11 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Node 3: Upstream PriceSnap AI Engine */}
+            {/* Node 3: Internal PriceSnap AI Engine */}
             <div className={`relative p-4 rounded-xl bg-slate-950/80 border transition-all ${
-              isUpstreamHealthy
+              isEngineConfigured
                 ? "border-emerald-500/50 shadow-md shadow-emerald-500/5"
-                : data?.upstream.connected
+                : data?.engine.hasApiKey
                 ? "border-amber-500/50"
                 : "border-rose-500/50"
             }`}>
@@ -715,22 +711,22 @@ export default function Home() {
                   </svg>
                 </div>
                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                  isUpstreamHealthy
+                  isEngineConfigured
                     ? "bg-emerald-950/80 text-emerald-300 border-emerald-700/60"
                     : "bg-amber-950/80 text-amber-300 border-amber-700/60"
                 }`}>
-                  {data?.upstream.status || "Checking"}
+                  {data?.engine.status || "Checking"}
                 </span>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white">Valuation Engine</h3>
-                <p className="text-xs text-slate-400 font-mono truncate mt-0.5" title={data?.backend.engineTarget}>
-                  pricesnapai.vercel.app
+                <p className="text-xs text-slate-400 font-mono truncate mt-0.5" title={data?.engine.model}>
+                  {data?.engine.model ?? "Gemini"}
                 </p>
               </div>
               <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-900 flex justify-between">
-                <span>{data?.upstream.engineVersion ? `v${data.upstream.engineVersion}` : "v1.1.0"}</span>
-                <span>{data?.upstream.hasApiKey ? "Gemini Key ✓" : "Key Needed"}</span>
+                <span>{data?.engine.engineVersion ? `v${data.engine.engineVersion}` : "internal-1.0.0"}</span>
+                <span>{data?.engine.hasApiKey ? "Gemini Key ✓" : "Key Needed"}</span>
               </div>
             </div>
           </div>
@@ -761,7 +757,7 @@ export default function Home() {
                 <div className="flex justify-between">
                   <span className="text-slate-500">Uptime:</span>
                   <span className="text-slate-300">
-                    {data?.backend.uptimeSeconds !== undefined
+                    {data?.backend.uptimeSeconds != null
                       ? `${Math.floor(data.backend.uptimeSeconds / 60)}m ${data.backend.uptimeSeconds % 60}s`
                       : "--"}
                   </span>
@@ -797,37 +793,37 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Card 2: Upstream Engine */}
+          {/* Card 2: Internal Engine */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition-all">
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Upstream AI Engine</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Internal AI Engine (configuration only)</span>
                 <span className="text-xs font-mono px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-400 border border-indigo-800/40">
-                  /api/health
+                  /api/connection
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-white tracking-tight">
-                  {data?.upstream.status ? data.upstream.status.toUpperCase() : "CHECKING"}
+                  {data?.engine.status ? data.engine.status.toUpperCase() : "CHECKING"}
                 </span>
                 <span className="text-xs font-mono text-cyan-400">
-                  {data?.upstream.latencyMs !== undefined ? `${data.upstream.latencyMs}ms` : "--"}
+                  {data?.engine.geminiLatencyMs != null ? `${data.engine.geminiLatencyMs}ms` : "--"}
                 </span>
               </div>
               <div className="space-y-1.5 pt-2 text-xs text-slate-400 font-mono">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Service:</span>
-                  <span className="text-slate-300">{data?.upstream.service ?? "pricesnap-api"}</span>
+                  <span className="text-slate-300">{data?.engine.service ?? "pricesnap-api"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Gemini Key:</span>
-                  <span className={data?.upstream.hasApiKey ? "text-emerald-400" : "text-amber-400"}>
-                    {data?.upstream.hasApiKey ? "Configured ✓" : "Missing / Not set"}
+                  <span className={data?.engine.hasApiKey ? "text-emerald-400" : "text-amber-400"}>
+                    {data?.engine.hasApiKey ? "Configured ✓" : "Missing / Not set"}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Engine Ver:</span>
-                  <span className="text-slate-300">{data?.upstream.engineVersion ?? "1.1.0"}</span>
+                  <span className="text-slate-300">{data?.engine.engineVersion ?? "internal-1.0.0"}</span>
                 </div>
               </div>
             </div>
@@ -835,13 +831,13 @@ export default function Home() {
             <button
               onClick={() => checkConnection(true)}
               className="mt-4 w-full py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-indigo-500/40 text-xs font-medium text-indigo-300 flex items-center justify-center gap-2 transition-all"
-              id="test-upstream-btn"
+              id="test-internal-btn"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              Verify Engine Health
+              Check Engine Configuration
             </button>
           </div>
 
@@ -944,7 +940,7 @@ export default function Home() {
                   <div>
                     <h3 className="text-sm font-semibold text-white">Live Liveness & Metadata Inspector</h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Verify local routing and upstream forwarding latency in real time.
+                      Verify local routing and internal engine configuration in real time.
                     </p>
                   </div>
                   <div className="flex items-center gap-2.5">
@@ -1072,7 +1068,7 @@ export default function Home() {
                             </span>
                             <span className="text-slate-300 truncate">{log.message}</span>
                           </div>
-                          {log.latencyMs !== undefined && (
+                          {log.latencyMs != null && (
                             <span className="text-slate-500 text-[11px] shrink-0 ml-3">{log.latencyMs}ms</span>
                           )}
                         </div>
@@ -1428,3 +1424,4 @@ data class Valuation(
     </div>
   );
 }
+

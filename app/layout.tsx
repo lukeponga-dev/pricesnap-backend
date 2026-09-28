@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "PriceSnap | Backend Service & Connection Console",
-  description: "Live connection health, upstream engine diagnostics, and Android compatibility API for PriceSnap.",
+  description: "Live connection health, internal engine configuration, and Android compatibility API for PriceSnap.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -27,3 +27,4 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     </html>
   );
 }
+
