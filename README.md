@@ -1,109 +1,656 @@
-# PriceSnap Backend — internal valuation engine
+# PriceSnap Backend
 
-Android → `POST /api/valuate` → Gemini identification → Google Search evidence → deterministic NZD pricing.
+> AI-assisted secondhand product valuation for the New Zealand market.
 
-Recognition, visual condition, comparable retrieval, evidence filtering, pricing and confidence now run inside this backend. There is no forwarding to pricesnapai and no upstream health request. Existing local helpers have been reactivated with grounded retrieval; this is not a byte-for-byte copy of the pricesnapai engine.
+PriceSnap Backend is the server-side valuation engine powering the PriceSnap application. It analyses product images, identifies products, assesses visible condition, gathers real-world market evidence, filters comparable listings, and calculates structured resale-value estimates in **New Zealand dollars (NZD)**.
 
-## Configuration
+PriceSnap is designed as a **valuation system supported by AI**, rather than an AI-generated pricing service.
 
-Node.js 20.9+ and npm:
+The AI is responsible primarily for understanding the submitted product and its visible condition. The PriceSnap backend controls market evidence, comparable filtering, pricing calculations, confidence scoring, normalization, validation, and the final API response.
 
-```bash
-npm ci
-# Copy .env.example to .env.local and set the server-side key.
-npm run dev
+---
+
+## Core Principle
+
+**AI understands the item. PriceSnap determines the valuation.**
+
+AI output is treated as untrusted structured input.
+
+No AI-generated price, confidence score, market listing, or URL is allowed to become authoritative simply because the model produced it.
+
+The backend remains responsible for determining what evidence is usable and how the final valuation is calculated.
+
+---
+
+## Architecture
+
+```text
+Product Image
+      │
+      ▼
+Input Validation
+      │
+      ▼
+┌─────────────────────────────┐
+│  1. Product Identification  │
+│  2. Condition Assessment    │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│  3. Search Query Generation │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│  4. Grounded Market Search  │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│  5. Evidence Filtering      │
+│     + Relevance             │
+│     + Outlier Removal       │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│  6. Deterministic Pricing   │
+│     + Weighted Median       │
+│     + Condition Adjustment  │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│  7. Confidence Scoring      │
+└──────────────┬──────────────┘
+               │
+               ▼
+Schema Validation
+      │
+      ▼
+PriceSnapResult
+      │
+      ▼
+Client
 ```
 
-Set these on the Vercel project serving `pricesnap-server.vercel.app`:
+---
 
-```dotenv
-GEMINI_API_KEY=your-server-side-key
-GEMINI_MODEL=gemini-flash-latest
+## Valuation Pipeline
+
+### Stage 1 — Product Identification
+
+The submitted image is analysed to identify the physical product.
+
+Typical structured output includes:
+
+- Product name
+- Brand
+- Model
+- Variant
+- Category
+- Visible specifications
+- Identification confidence
+
+Identification output passes through `validateIdentification` before it can continue through the valuation pipeline.
+
+Unknown or uncertain attributes should not be invented.
+
+---
+
+### Stage 2 — Condition Assessment
+
+The image is analysed for visible condition and defects.
+
+Supported condition grades are represented by the strict `ConditionGrade` type.
+
+Condition assessment can consider:
+
+- Scratches
+- Cracks
+- Dents
+- Screen damage
+- Discolouration
+- Missing components
+- General wear
+- Broken components
+- Packaging
+- Visible accessories
+
+Condition is used later by the deterministic pricing engine.
+
+---
+
+### Stage 3 — Search Query Generation
+
+`buildQueries` converts validated product identification into targeted market-search queries.
+
+Queries should prioritize reliable product attributes such as:
+
+```text
+Samsung Galaxy S23 Ultra 256GB used NZ
+Samsung S23 Ultra 256GB second hand
+Samsung Galaxy S23 Ultra Trade Me
 ```
 
-`GEMINI_MODEL` is optional and must support images and Google Search grounding. The existing `@google/genai` SDK is used. Never put the Gemini key in Android, frontend code or Git. Remove `PRICESNAP_ENGINE_URL`; it is no longer read. A key configured on pricesnapai does not configure this backend.
+Uncertain product attributes should not be used to over-specify searches.
 
-## Android API
+---
 
-The existing request stays supported:
+### Stage 4 — Grounded Market Search
 
-```json
-{ "imageBase64": "<base64 image>", "mimeType": "image/jpeg" }
+`groundedSearch` gathers real-world market evidence relevant to the identified product.
+
+PriceSnap is designed primarily for the **New Zealand secondhand market**, so NZ evidence should be preferred where available.
+
+Market evidence may include information from:
+
+- Public marketplace listings
+- Used-product listings
+- Refurbished-product listings
+- Retail references
+- Search-engine results
+- Specialist secondhand retailers
+
+Evidence must contain enough information to be evaluated before it can influence pricing.
+
+URLs must never be fabricated.
+
+---
+
+### Stage 5 — Evidence Filtering
+
+Market evidence is cleaned before pricing.
+
+The pipeline uses:
+
+```text
+calculateRelevance()
+        ↓
+filterEvidence()
+        ↓
+removeOutliers()
 ```
 
-Also accepts `{ "image": "<base64 image>" }` (JPEG by default) or an image data URL. Use JPEG, PNG or WebP with the correct MIME type. Standard padded Base64, no whitespace; decoded maximum 3,000,000 bytes. Compress camera images before upload. Base64/MIME validation runs locally; Gemini rejects undecodable image contents.
+Filtering is responsible for preventing weak or misleading comparables from influencing the final valuation.
 
-Responses retain `item`, `condition`, `valuation`, `confidence`, `comparables`, `warnings`, `generatedAt`, `ok` and `status`. Condition is 0–100; confidence is 0–1 with low/medium/high levels.
+Evidence may be rejected or reduced in influence when it represents:
 
-- `success`: at least two distinct cited NZD comparables; median price and a heuristic ±15% band.
-- `insufficient_evidence`: HTTP 200, null `estimatedValue`, `low`, `high`; empty comparables and zero confidence. Never display these as zero dollars.
+- Wrong products
+- Different generations
+- Significant variant mismatches
+- Accessories
+- Replacement parts
+- Broken products
+- Bundles
+- Duplicate listings
+- Invalid prices
+- Ambiguous currencies
+- Weak search matches
+- Extreme price outliers
 
-Android's three price fields must be nullable `Double?`. Existing endpoint and normal request fields do not change; client compatibility still requires handling the existing nullable result contract. This repository does not verify or modify the Android UI.
+Evidence classification is **not a separate pipeline stage**.
 
-## Evidence pipeline and limitations
+Evidence quality is handled through the existing relevance, filtering, validation, and outlier-removal logic.
 
-`lib/valuation-engine/index.ts` exports `runEngine` (also `valuateImage`). It orchestrates:
+---
 
-1. Vision identification and visible condition using structured JSON.
-2. Google Search research for used listings of the identified item/variant.
-3. JSON extraction of exact cited statements containing the listing title and explicit NZD/NZ$ price.
-4. Checks that quotes occur in grounded segments linked to the source index. URLs come from grounding metadata, never invented extraction fields. Missing currency, unsupported quotes, duplicate URLs, weak identity matches and unsuitable listings are rejected.
-5. Median pricing and evidence-based confidence. No synthetic price fallback.
+### Stage 6 — Deterministic Pricing
 
-Grounding is evidence from Google's model/search response, not independent scraping or verification of a listing page. Indexed prices may be stale and model statements may still be wrong. Unknown dates receive reduced freshness credit. Public marketplace coverage can be incomplete, particularly Facebook Marketplace. Asking prices are not completed sales; the range is not a statistical confidence interval. Strict filters may return no valuation.
+The AI model does **not** determine the final resale price.
 
-Marketplace recommendations are not part of the existing Android response contract and are not introduced by this migration.
+PriceSnap calculates it programmatically.
 
-## Diagnostics
+The pricing engine uses the surviving comparable evidence to calculate a base market value using:
 
-`GET /api/ping` remains backend liveness. `GET /api/connection` checks local configuration without spending Gemini quota:
+```text
+weightedMedian()
+```
+
+The result is then adjusted for the item's visible condition:
+
+```text
+applyConditionAdjustment()
+```
+
+Conceptually:
+
+```text
+Validated Comparables
+        ↓
+Weighted Median
+        ↓
+Base Market Value
+        ↓
+Condition Adjustment
+        ↓
+Estimated Resale Value
+```
+
+The API should return an estimated resale range as well as the expected value.
+
+Example:
 
 ```json
 {
-  "ok": true,
-  "timestamp": 1700000000000,
-  "backend": { "status": "online", "service": "pricesnap-backend", "version": "0.1.0" },
-  "engine": {
-    "status": "configured",
-    "service": "internal-gemini",
-    "hasApiKey": true,
-    "model": "gemini-flash-latest",
-    "engineVersion": "internal-1.0.0",
-    "geminiLatencyMs": null,
-    "providerChecked": false
+  "low": 780,
+  "expected": 860,
+  "high": 940,
+  "currency": "NZD"
+}
+```
+
+---
+
+### Stage 7 — Confidence Scoring
+
+Confidence is calculated programmatically rather than generated directly by the AI.
+
+`calculateConfidence` considers signals such as:
+
+- Identification confidence
+- Number of usable comparables
+- Comparable relevance
+- Price consistency
+- Market evidence presence
+
+The result is normalized into a numeric score and strict `ConfidenceLevel`.
+
+Example:
+
+```json
+{
+  "score": 87,
+  "level": "HIGH"
+}
+```
+
+A high confidence score should indicate that PriceSnap has strong identification and sufficiently consistent market evidence supporting the valuation.
+
+---
+
+## End-to-End Flow
+
+```text
+IMAGE
+  ↓
+IDENTIFICATION
+  ↓
+CONDITION
+  ↓
+SEARCH QUERIES
+  ↓
+MARKET EVIDENCE
+  ↓
+RELEVANCE
+  ↓
+FILTERING
+  ↓
+OUTLIER REMOVAL
+  ↓
+WEIGHTED MEDIAN
+  ↓
+CONDITION ADJUSTMENT
+  ↓
+CONFIDENCE
+  ↓
+SCHEMA VALIDATION
+  ↓
+PRICESNAP RESULT
+```
+
+---
+
+## API
+
+### Health Check
+
+```http
+GET /api/ping
+```
+
+Used by clients and deployment monitoring to confirm that the PriceSnap backend is available.
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "service": "pricesnap-backend"
+}
+```
+
+---
+
+### Create Valuation
+
+```http
+POST /api/valuate
+```
+
+Example request:
+
+```json
+{
+  "imageBase64": "..."
+}
+```
+
+The endpoint validates the request and delegates valuation work to the shared valuation engine.
+
+API routes should remain thin. Pricing and evidence logic belongs inside the valuation engine rather than inside route handlers.
+
+---
+
+## Example Result
+
+```json
+{
+  "success": true,
+  "item": {
+    "name": "Samsung Galaxy S23 Ultra",
+    "brand": "Samsung",
+    "model": "Galaxy S23 Ultra",
+    "variant": "256GB",
+    "category": "Smartphone"
+  },
+  "condition": {
+    "grade": "GOOD",
+    "score": 76,
+    "defects": [
+      "Minor visible frame wear"
+    ]
+  },
+  "valuation": {
+    "low": 780,
+    "expected": 860,
+    "high": 940,
+    "currency": "NZD"
+  },
+  "confidence": {
+    "score": 87,
+    "level": "HIGH"
+  },
+  "comparables": [],
+  "marketplaceRecommendation": "Trade Me",
+  "summary": "..."
+}
+```
+
+---
+
+## Error Handling
+
+PriceSnap uses structured errors rather than returning incomplete or invented valuations.
+
+Example:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INSUFFICIENT_EVIDENCE",
+    "message": "Unable to generate a reliable valuation."
   }
 }
 ```
 
-Additional backend runtime metadata is returned. Missing key yields HTTP 503, `ok: false`, `status: "not_configured"`. A configured key does not prove it is valid or has quota. Latency is null because no Gemini request is made. The dashboard uses this new `engine` schema; other diagnostic consumers must migrate from `upstream`.
+Expected error categories include:
 
-## Errors and execution
-
-Safe errors remain `{ "error": "Safe message", "code": "STABLE_CODE" }`:
-
-| Code | HTTP |
-| --- | --- |
-| INVALID_REQUEST, INVALID_IMAGE, INVALID_MIME_TYPE | 400 |
-| IMAGE_TOO_LARGE | 413 |
-| IDENTIFICATION_UNCERTAIN | 422 |
-| PROVIDER_RATE_LIMIT | 429 |
-| VALUATION_FAILED | 502 |
-| SERVICE_NOT_CONFIGURED | 503 |
-| ANALYSIS_TIMEOUT | 504 |
-
-The 95-second deadline and client abort signal propagate to Gemini calls. No application retry. Node route duration is 120 seconds. Use a matching Android timeout. Responses use no-store; this backend does not persist photos or log provider messages. Google handles submitted data under the API account's terms. Authentication and rate limiting remain separate production-hardening work.
-
-## Verification and rollout
-
-```bash
-npm test
-npm run lint
-npm run build
-npm start
-# A real photo you are authorized to upload; consumes Gemini/Search quota:
-npm run smoke:live -- /path/to/item.jpg http://localhost:3000
-# Repeat after deployment:
-npm run smoke:live -- /path/to/item.jpg https://pricesnap-server.vercel.app
+```text
+INVALID_REQUEST
+NO_IMAGE
+IMAGE_TOO_LARGE
+UNSUPPORTED_IMAGE
+IDENTIFICATION_FAILED
+INSUFFICIENT_EVIDENCE
+AI_PROVIDER_ERROR
+SEARCH_FAILED
+VALIDATION_FAILED
+VALUATION_FAILED
+RATE_LIMITED
+INTERNAL_ERROR
 ```
 
-Before rollout: configure the backend key/model, deploy the reviewed branch, check connection configuration, then run the live smoke test and inspect listing identity, NZD price and URLs manually. An insufficient-evidence result proves the unpriced path only. Deterministic tests do not establish live-provider acceptance or price accuracy.
+Internal stack traces, credentials, raw provider errors, and sensitive payloads must not be returned to clients.
+
+---
+
+## Validation
+
+AI responses and external market evidence must be considered untrusted input.
+
+PriceSnap validates:
+
+- Required fields
+- Primitive types
+- Condition grades
+- Confidence levels
+- Price boundaries
+- Currency
+- Comparable structure
+- URLs
+- Nullable/unknown fields
+- Final API schema
+
+Malformed AI output should either be safely normalized or rejected.
+
+It must never silently become a valid PriceSnap valuation.
+
+---
+
+## Environment
+
+Create a local environment file:
+
+```text
+.env.local
+```
+
+Configure the required server-side credentials.
+
+Example:
+
+```ini
+OPENAI_API_KEY=your_api_key_here
+```
+
+Secrets must remain server-side.
+
+Never expose provider API keys through:
+
+- Android source code
+- Client-side JavaScript
+- API responses
+- Public repositories
+- Application logs
+
+---
+
+## Installation
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Run TypeScript validation:
+
+```bash
+npm run typecheck
+```
+
+Create a production build:
+
+```bash
+npm run build
+```
+
+Start the production server:
+
+```bash
+npm start
+```
+
+---
+
+## Technology
+
+```text
+Runtime        Node.js
+Framework      Next.js
+Language       TypeScript
+Deployment     Vercel
+Currency       NZD
+Primary Market New Zealand
+```
+
+The project uses strict TypeScript configuration so valuation contracts and pipeline boundaries remain strongly typed.
+
+---
+
+## Security
+
+The backend should:
+
+- Validate all incoming requests
+- Enforce image size limits
+- Restrict supported image formats
+- Keep provider credentials server-side
+- Avoid logging Base64 image payloads
+- Avoid logging secrets
+- Apply request/rate limits
+- Validate external evidence
+- Validate all AI-generated structures
+- Return controlled error responses
+
+Images should be retained only for as long as required to perform the valuation unless an explicit product requirement requires longer storage.
+
+---
+
+## Valuation Integrity
+
+PriceSnap should prefer returning **insufficient evidence** over manufacturing certainty.
+
+The following rules are fundamental:
+
+```text
+Never fabricate comparable listings.
+Never fabricate URLs.
+Never treat AI output as verified market evidence.
+Never allow malformed evidence into pricing.
+Never allow the AI model to directly set final confidence.
+Never allow the AI model to directly control final valuation.
+```
+
+---
+
+## Development Principles
+
+When extending PriceSnap:
+
+1. Keep API routes thin.
+2. Keep valuation logic inside the shared engine.
+3. Keep identification separate from pricing.
+4. Keep evidence filtering deterministic where practical.
+5. Keep pricing deterministic.
+6. Keep confidence programmatic.
+7. Validate every external boundary.
+8. Prefer explicit failure over invented evidence.
+9. Measure valuation changes against the benchmark suite.
+10. Avoid changing frozen architecture unless benchmark evidence justifies it.
+
+---
+
+## Deployment
+
+PriceSnap is designed for deployment on Vercel.
+
+```text
+Client
+   │
+   │ HTTPS
+   ▼
+Vercel
+   │
+   ▼
+PriceSnap API
+   │
+   ▼
+Valuation Engine
+   ├── Identification
+   ├── Condition
+   ├── Market Search
+   ├── Evidence Filtering
+   ├── Pricing
+   └── Confidence
+   │
+   ▼
+Validated PriceSnapResult
+```
+
+Production secrets should be configured through the deployment environment rather than committed to source control.
+
+---
+
+## Current Development Status
+
+The core valuation architecture is considered **frozen**.
+
+Implemented architectural components include:
+
+```text
+✓ Structured product identification
+✓ Identification validation
+✓ Condition assessment
+✓ Search query generation
+✓ Grounded market search
+✓ Evidence relevance scoring
+✓ Evidence filtering
+✓ Outlier removal
+✓ Weighted-median pricing
+✓ Condition adjustment
+✓ Programmatic confidence scoring
+✓ Strict result validation
+✓ Structured error handling
+```
+
+New work should focus on measurable improvements, testing, diagnostics, evidence quality, reliability, and product features without unnecessarily redesigning the core valuation pipeline.
+
+---
+
+## Benchmarking
+
+Changes to valuation behavior should be measured against the established PriceSnap benchmark set.
+
+Useful metrics include:
+
+```text
+Identification accuracy
+Absolute valuation error
+Percentage valuation error
+Comparable acceptance rate
+Comparable rejection rate
+Price dispersion
+Confidence calibration
+Pipeline latency
+Failure rate
+```
+
+A pricing or filtering change should be evaluated against the baseline before becoming the new default.
+
+---
+
+## License
+
+Private project.
+
+Copyright © PriceSnap. All rights reserved.
