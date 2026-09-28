@@ -120,6 +120,30 @@ variable. Check that the pricesnapai project has its server-side Gemini key.
 `GET /api/ping` on this backend is liveness only. The shared engine's
 `https://pricesnapai.vercel.app/api/health` reports configuration presence,
 not recognition accuracy, quota availability or live listing coverage.
+
+## GET /api/connection
+
+This endpoint provides a consolidated health check combining both this backend's status and the upstream valuation engine's status. It's useful for frontend clients to display connection health.
+
+### Results
+
+```json
+{
+  "ok": true,
+  "timestamp": 1700000000000,
+  "backend": {
+    "status": "online",
+    "service": "pricesnap-backend",
+    "version": "0.1.0"
+  },
+  "upstream": {
+    "connected": true,
+    "status": "online",
+    "latencyMs": 142
+  }
+}
+```
+
 Deterministic tests use controlled upstream responses and do not establish
 live provider acceptance. Authentication and rate limiting remain separate
 production-hardening work.
