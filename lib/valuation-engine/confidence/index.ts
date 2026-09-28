@@ -26,6 +26,9 @@ export function calculateConfidence(
   evidence: MarketEvidence,
   valuation: Valuation,
 ): Confidence {
+  if (valuation.estimatedValue === null || evidence.comparables.length === 0) {
+    return { score: 0, level: "low" };
+  }
   const idScore = clamp(identification.identificationConfidence, 0, 1);
   const countScore = comparableCountScore(evidence.comparables.length);
   const consistencyScore = priceConsistencyScore(

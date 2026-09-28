@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { validateCandidates } from "../lib/valuation-engine/evidence/validate.js";
 import { buildSearchQueries } from "../lib/valuation-engine/evidence/queries.js";
 import { normalizeValue } from "../lib/valuation-engine/identification/index.js";
-import { calculateAiEstimate, calculateValuation } from "../lib/valuation-engine/pricing/index.js";
+import { calculateValuation } from "../lib/valuation-engine/pricing/index.js";
 import type { IdentifiedItem, ScoredComparable } from "../lib/valuation-engine/types.js";
 
 const item: IdentifiedItem = {
@@ -34,11 +34,8 @@ test("market valuation uses median and marks market evidence", () => {
   });
 });
 
-test("ai estimate returns a deterministic fallback band", () => {
-  const valuation = calculateAiEstimate(50);
-
-  assert.equal(valuation.currency, "NZD");
-  assert.equal(valuation.estimatedValue, 650);
+test("empty evidence cannot produce a synthetic price", () => {
+  assert.throws(() => calculateValuation([]), /Insufficient market evidence/);
 });
 
 test("unknown-like values normalize to absence", () => {
@@ -110,3 +107,4 @@ function listing(title: string, price: number) {
     url: "https://example.test/listing",
   };
 }
+

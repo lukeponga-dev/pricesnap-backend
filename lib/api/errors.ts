@@ -5,6 +5,10 @@ export type ApiErrorCode =
   | "IMAGE_TOO_LARGE"
   | "UNAUTHORIZED"
   | "INSUFFICIENT_EVIDENCE"
+  | "SERVICE_NOT_CONFIGURED"
+  | "PROVIDER_RATE_LIMIT"
+  | "ANALYSIS_TIMEOUT"
+  | "IDENTIFICATION_UNCERTAIN"
   | "VALUATION_FAILED";
 
 export interface ApiErrorResponse {
@@ -19,6 +23,10 @@ const errors: Record<ApiErrorCode, { status: number; error: string }> = {
   IMAGE_TOO_LARGE: { status: 413, error: "Image is too large" },
   UNAUTHORIZED: { status: 401, error: "Authentication required" },
   INSUFFICIENT_EVIDENCE: { status: 422, error: "Insufficient market evidence" },
+  SERVICE_NOT_CONFIGURED: { status: 503, error: "Valuation service is not configured" },
+  PROVIDER_RATE_LIMIT: { status: 429, error: "Valuation service is busy; try again later" },
+  ANALYSIS_TIMEOUT: { status: 504, error: "Valuation timed out; try again later" },
+  IDENTIFICATION_UNCERTAIN: { status: 422, error: "Unable to identify the item; try a clearer photo" },
   VALUATION_FAILED: { status: 502, error: "Unable to complete valuation" },
 };
 
@@ -33,5 +41,5 @@ export function apiErrorResponse(error: unknown): Response {
   const code = error instanceof ApiError ? error.code : "VALUATION_FAILED";
   const definition = errors[code];
   const body: ApiErrorResponse = { error: definition.error, code };
-  return Response.json(body, { status: definition.status });
+  return Response.json(body, { status: definition.status, headers: { "Cache-Control": "no-store" } });
 }
