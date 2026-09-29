@@ -131,7 +131,7 @@ export async function identifyItem(
 
   return {
     item: {
-      name: parsed.name || "Unknown",
+      name: parsed.name,
       // Drop "Unknown" brand/model so the public payload stays clean.
       brand: normalizeValue(parsed.brand),
       model: normalizeValue(parsed.model),
@@ -140,12 +140,12 @@ export async function identifyItem(
     },
     condition: {
       grade: normalizeValue(parsed.condition.grade) ?? "Unknown",
-      score: clamp(Number(parsed.condition.score) || 0, 0, 100),
+      score: clamp(parsed.condition.score, 0, 100),
       // Map model "observations" onto AppraisalResponse.condition.notes.
-      notes: parsed.condition.observations ?? [],
+      notes: parsed.condition.observations,
     },
     identificationConfidence: clamp(
-      Number(parsed.identificationConfidence) || 0,
+      parsed.identificationConfidence,
       0,
       1,
     ),

@@ -20,18 +20,28 @@ export function groundedCandidates(payload: unknown, grounding?: GroundingMetada
     const prices = [...c.quote.matchAll(/(?:NZD\s*\$?|NZ\$)\s*([\d,]+(?:\.\d{1,2})?)/gi)]
       .map(m => Number(m[1].replaceAll(",", "")));
     if (!prices.includes(c.price)) return [];
-    const url = grounding?.groundingChunks?.[c.sourceIndex]?.web?.uri;
+    const { sourceIndex, quote } = c;
+    const source = grounding?.groundingChunks?.[sourceIndex]?.web;
+    const url = source?.uri;
     if (!url || seen.has(url)) return [];
+    let parsedUrl: URL;
     try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "https:" || parsed.username || parsed.password) return [];
-    } catch { return []; }
+      parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== "https:" || parsedUrl.username || parsedUrl.password) return [];
+    } catch {
+      return [];
+    }
     const supported = grounding?.groundingSupports?.some(s =>
-      s.groundingChunkIndices?.includes(c.sourceIndex as number) && s.segment?.text?.includes(c.quote as string));
+      s.groundingChunkIndices?.includes(sourceIndex) && s.segment?.text?.includes(quote));
     if (!supported) return [];
     seen.add(url);
-    return [{ title: c.title, price: c.price, currency: "NZD", url,
-      source: grounding?.groundingChunks?.[c.sourceIndex]?.web?.title || new URL(url).hostname }];
+    return [{
+      title: c.title,
+      price: c.price,
+      currency: "NZD",
+      url,
+      source: source?.title || parsedUrl.hostname,
+    }];
   });
 }
 

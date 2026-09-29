@@ -128,8 +128,9 @@ function scoreVariantMatch(item: IdentifiedItem, titleLower: string): number {
   const model = item.item.model?.toLowerCase();
   const brand = item.item.brand?.toLowerCase();
   const name = item.item.name.toLowerCase();
+  const titleNorm = titleLower.replace(/\s+/g, "");
 
-  if (model && titleLower.includes(model.toLowerCase())) score += 0.6;
+  if (model && titleLower.includes(model)) score += 0.6;
   else if (name && containsTokens(titleLower, name)) score += 0.5;
 
   if (brand && titleLower.includes(brand)) score += 0.1;
@@ -138,7 +139,6 @@ function scoreVariantMatch(item: IdentifiedItem, titleLower: string): number {
     if (!value || value.toLowerCase() === "unknown") continue;
 
     const normalized = value.toLowerCase().replace(/\s+/g, "");
-    const titleNorm = titleLower.replace(/\s+/g, "");
 
     if (
       titleNorm.includes(normalized) ||
