@@ -58,6 +58,26 @@ test("query construction omits unknown-like attributes", () => {
   assert.ok(queries.some((query) => query.includes("256GB")));
 });
 
+test("brand-only recognition retains the item name in every search query", () => {
+  const queries = buildSearchQueries({
+    ...item,
+    item: { name: "Xbox Controller", brand: "Xbox", category: "Gaming Accessories", attributes: {} },
+  });
+  assert.ok(queries.every(query => query.includes("Xbox Controller")));
+  assert.ok(queries.every(query => !query.includes("Xbox Xbox")));
+  assert.ok(queries.some(query => query.includes("site:trademe.co.nz")));
+});
+
+test("queries preserve model and include an alternative without cosmetic attributes", () => {
+  const queries = buildSearchQueries({
+    ...item,
+    item: { ...item.item, attributes: { colour: "silver", storage: "256GB" } },
+  });
+  assert.ok(queries.every(query => query.includes("iPhone 13 Pro")));
+  assert.ok(queries.some(query => query.includes("256GB")));
+  assert.ok(queries.some(query => !query.includes("silver")));
+});
+
 test("candidate filtering is item-aware for accessories", () => {
   const candidates = validateCandidates(item, [
     listing("iPhone 13 Pro 256GB with case", 650),
