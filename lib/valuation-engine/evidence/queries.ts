@@ -12,9 +12,11 @@ import type { IdentifiedItem } from "../types";
 export function buildSearchQueries(item: IdentifiedItem): string[] {
   const { brand, model, name, attributes } = item.item;
 
-  // Prefer brand + model; fall back to free-text name when either is missing.
-  const parts = [brand, model].filter(Boolean);
-  const base = parts.length > 0 ? parts.join(" ") : name;
+  // Brand alone is not an item identity: "Xbox Controller" must not become
+  // "Xbox" when recognition cannot read a specific model number.
+  const identity = model || name;
+  const includesBrand = brand && identity.toLowerCase().includes(brand.toLowerCase());
+  const base = [includesBrand ? undefined : brand, identity].filter(Boolean).join(" ");
 
   const knownAttrs = Object.entries(attributes)
     .filter(([, v]) => v && !["unknown", "n/a", "unsure"].includes(v.toLowerCase()))
@@ -25,8 +27,9 @@ export function buildSearchQueries(item: IdentifiedItem): string[] {
 
   const queries = [
     `${core} used NZ`,
-    `${core} Trade Me`,
-    `${base} ${attrSuffix} second hand New Zealand`.trim(),
+    `${core} used site:trademe.co.nz`,
+    // A broader query still names the item, without optional cosmetic attributes.
+    `${base} second hand New Zealand`,
   ];
 
   // De-dupe after whitespace normalization.
