@@ -333,13 +333,50 @@ Example request:
 
 ```json
 {
-  "imageBase64": "..."
+  "imageBase64": "...",
+  "mimeType": "image/jpeg"
 }
 ```
 
 The endpoint validates the request and delegates valuation work to the shared valuation engine.
 
 API routes should remain thin. Pricing and evidence logic belongs inside the valuation engine rather than inside route handlers.
+
+### Create Resale Plan
+
+```http
+POST /api/resale
+```
+
+The resale endpoint accepts the same image fields as `/api/valuate`, plus optional seller preferences. It runs the existing valuation pipeline first, then derives seller strategy from that evidence-derived result. Clients cannot submit their own valuation or price.
+
+```json
+{
+  "imageBase64": "...",
+  "mimeType": "image/jpeg",
+  "preferences": {
+    "marketplace": "Trade Me",
+    "notes": "Includes the original box"
+  }
+}
+```
+
+The response contains the unchanged valuation result, a listing draft, negotiation guidance, a checklist, and deterministic seller targets:
+
+```json
+{
+  "status": "success",
+  "saleStrategy": {
+    "currency": "NZD",
+    "suggestedListingPrice": 570,
+    "targetSalePrice": 520,
+    "minimumNegotiationPrice": 470,
+    "basis": "evidence_derived"
+  }
+}
+```
+
+If the valuation has insufficient evidence, all three seller prices are `null`. Listing copy may still be drafted, but the service does not invent a price or negotiation floor.
 
 ---
 
@@ -448,13 +485,25 @@ Create a local environment file:
 .env.local
 ```
 
-Configure the required server-side credentials.
+Configure server-side credentials:
 
 Example:
 
 ```ini
-OPENAI_API_KEY=your_api_key_here
+GEMINI_API_KEY=your_gemini_api_key
+# Optional model override; defaults to gemma-4-26b-a4b-it
+GEMINI_MODEL=your_gemini_model
+
+# Optional: enables OpenAI listing copy for /api/resale.
+# Without it, /api/resale uses the deterministic listing provider.
+OPENAI_API_KEY=your_openai_api_key
+# Optional model override; defaults to o4-mini
+OPENAI_RESALE_MODEL=your_openai_model
+# Optional listing-provider deadline in milliseconds; defaults to 8000 and is capped at 10000
+OPENAI_RESALE_TIMEOUT_MS=8000
 ```
+
+Gemini remains responsible for image identification and grounded market search. OpenAI is used only for seller-facing listing copy. Valuation, evidence validation, seller price targets, and negotiation floors remain deterministic backend logic.
 
 Secrets must remain server-side.
 
