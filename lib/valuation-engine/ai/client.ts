@@ -58,6 +58,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 /** Retry only transient provider failures; permanent request/auth/model errors fail immediately. */
 export async function withGeminiRetry<T>(
   operation: () => Promise<T>,
+  model: string,
   signal?: AbortSignal,
   maxAttempts = 3,
 ): Promise<T> {
@@ -77,7 +78,7 @@ export async function withGeminiRetry<T>(
       const backoffMs = 750 * (2 ** (attempt - 1)) + Math.floor(Math.random() * 250);
       console.warn(JSON.stringify({
         event: "gemini_retry",
-        model: getModel(),
+        model,
         providerStatus: status,
         attempt,
         nextAttempt: attempt + 1,
