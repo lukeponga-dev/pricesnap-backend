@@ -491,8 +491,14 @@ Example:
 
 ```ini
 GEMINI_API_KEY=your_gemini_api_key
-# Optional model override; defaults to gemma-4-26b-a4b-it
+# Backward-compatible general model override. Evidence uses this when
+# GEMINI_EVIDENCE_MODEL is not set.
 GEMINI_MODEL=your_gemini_model
+# Optional vision-only override; defaults to gemini-3.1-flash-lite.
+GEMINI_VISION_MODEL=your_vision_model
+# Optional evidence/search override. Falls back to GEMINI_MODEL, then
+# gemini-2.5-flash-lite.
+GEMINI_EVIDENCE_MODEL=your_evidence_model
 
 # Optional: enables OpenAI listing copy for /api/resale.
 # Without it, /api/resale uses the deterministic listing provider.
