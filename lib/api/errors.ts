@@ -7,6 +7,7 @@ export type ApiErrorCode =
   | "INSUFFICIENT_EVIDENCE"
   | "SERVICE_NOT_CONFIGURED"
   | "PROVIDER_RATE_LIMIT"
+  | "PROVIDER_MODEL_UNAVAILABLE"
   | "ANALYSIS_TIMEOUT"
   | "IDENTIFICATION_UNCERTAIN"
   | "VALUATION_FAILED";
@@ -25,6 +26,7 @@ const errors: Record<ApiErrorCode, { status: number; error: string }> = {
   INSUFFICIENT_EVIDENCE: { status: 422, error: "Insufficient market evidence" },
   SERVICE_NOT_CONFIGURED: { status: 503, error: "Valuation service is not configured" },
   PROVIDER_RATE_LIMIT: { status: 429, error: "Valuation service is busy; try again later" },
+  PROVIDER_MODEL_UNAVAILABLE: { status: 503, error: "Configured AI model is unavailable" },
   ANALYSIS_TIMEOUT: { status: 504, error: "Valuation timed out; try again later" },
   IDENTIFICATION_UNCERTAIN: { status: 422, error: "Unable to identify the item; try a clearer photo" },
   VALUATION_FAILED: { status: 502, error: "Unable to complete valuation" },
