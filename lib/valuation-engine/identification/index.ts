@@ -11,7 +11,7 @@ import {
   createPartFromText,
   Type,
 } from "@google/genai";
-import { getAiClient, getModel, withGeminiRetry } from "../ai/client";
+import { getAiClient, getVisionModel, withGeminiRetry } from "../ai/client";
 import { parseImageBase64 } from "../ai/image";
 import { clamp, parseModelJson } from "../ai/parse-json";
 import type { IdentifiedItem } from "../types";
@@ -96,7 +96,7 @@ export async function identifyItem(
 
   const response = await withGeminiRetry(
     () => ai.models.generateContent({
-    model: getModel(),
+    model: getVisionModel(),
     contents: [
       createPartFromText(
         [
