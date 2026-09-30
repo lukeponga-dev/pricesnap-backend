@@ -1,6 +1,7 @@
 import { ApiError } from "../api/errors";
 import { identifyItem, normalizeValue } from "./identification";
 import { findMarketEvidence } from "./evidence";
+import { findOpenAIMarketEvidence, getOpenAIEvidenceModel } from "./evidence/openai";
 import { calculateValuation } from "./pricing";
 import { calculateConfidence } from "./confidence";
 import { getEvidenceModel, getVisionModel } from "./ai/client";
@@ -10,6 +11,14 @@ export interface EngineOptions { signal?: AbortSignal; requestId?: string }
 export interface EngineDependencies {
   identify: typeof identifyItem;
   evidence: typeof findMarketEvidence;
+}
+
+function configuredEvidence() {
+  return process.env.OPENAI_API_KEY?.trim() ? findOpenAIMarketEvidence : findMarketEvidence;
+}
+
+function configuredEvidenceModel(): string {
+  return process.env.OPENAI_API_KEY?.trim() ? getOpenAIEvidenceModel() : getEvidenceModel();
 }
 
 type Stage = "identify" | "evidence" | "pricing";
@@ -92,7 +101,7 @@ export async function runEngine(
   imageBase64: string,
   mimeType = "image/jpeg",
   options: EngineOptions = {},
-  dependencies: EngineDependencies = { identify: identifyItem, evidence: findMarketEvidence },
+  dependencies: EngineDependencies = { identify: identifyItem, evidence: configuredEvidence() },
 ): Promise<AppraisalResponse> {
   const requestId = options.requestId ?? crypto.randomUUID();
   const engineStartedAt = Date.now();
@@ -123,15 +132,15 @@ export async function runEngine(
     }
 
     const evidenceStartedAt = Date.now();
-    logStage("info", requestId, "evidence", "start", evidenceStartedAt, getEvidenceModel());
+    logStage("info", requestId, "evidence", "start", evidenceStartedAt, configuredEvidenceModel());
     let evidence;
     try {
       evidence = await dependencies.evidence(identified, controller.signal);
-      logStage("info", requestId, "evidence", "success", evidenceStartedAt, getEvidenceModel(), {
+      logStage("info", requestId, "evidence", "success", evidenceStartedAt, configuredEvidenceModel(), {
         comparableCount: evidence.comparables.length,
       });
     } catch (error) {
-      logStage("error", requestId, "evidence", "failure", evidenceStartedAt, getEvidenceModel(), safeProviderError(error));
+      logStage("error", requestId, "evidence", "failure", evidenceStartedAt, configuredEvidenceModel(), safeProviderError(error));
       throw error;
     }
 
@@ -163,10 +172,10 @@ export async function runEngine(
         ...(!enough ? ["Not enough grounded NZD comparables to estimate a value."] : []),
       ],
     };
-    logStage("info", requestId, "engine", "success", engineStartedAt, "pipeline", { outcome: result.status, visionModel: getVisionModel(), evidenceModel: getEvidenceModel() });
+    logStage("info", requestId, "engine", "success", engineStartedAt, "pipeline", { outcome: result.status, visionModel: getVisionModel(), evidenceModel: configuredEvidenceModel() });
     return result;
   } catch (error) {
-    logStage("error", requestId, "engine", "failure", engineStartedAt, "pipeline", { ...safeProviderError(error), visionModel: getVisionModel(), evidenceModel: getEvidenceModel() });
+    logStage("error", requestId, "engine", "failure", engineStartedAt, "pipeline", { ...safeProviderError(error), visionModel: getVisionModel(), evidenceModel: configuredEvidenceModel() });
     if (controller.signal.aborted) throw new ApiError("ANALYSIS_TIMEOUT");
     if (error instanceof ApiError) throw error;
     const failure = providerFailure(error);

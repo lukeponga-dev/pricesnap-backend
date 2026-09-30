@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runEngine, type EngineDependencies } from "../lib/valuation-engine/index.js";
 import { groundedCandidates } from "../lib/valuation-engine/evidence/index.js";
+import { parseOpenAICandidates } from "../lib/valuation-engine/evidence/openai.js";
 import { connectionStatus } from "../lib/api/connection.js";
 import { createValuateHandler } from "../lib/api/valuate.js";
 import type { GroundingMetadata } from "@google/genai";
@@ -64,6 +65,12 @@ test("candidates require a cited quote with exact title, explicit NZD price and 
     assert.deepEqual(groundedCandidates([invalid], grounding), []);
   }
   assert.deepEqual(groundedCandidates([row]), []);
+});
+test("OpenAI evidence parser rejects malformed, foreign-currency and missing-URL rows", () => {
+  assert.equal(parseOpenAICandidates('[{"title":"iPhone 13 Pro","price":600,"currency":"NZD","source":"Trade Me","url":"https://www.trademe.co.nz/a/1"}]').length, 1);
+  assert.deepEqual(parseOpenAICandidates('[{"title":"iPhone","price":600,"currency":"USD","url":"https://example.com"}]'), []);
+  assert.deepEqual(parseOpenAICandidates('[{"title":"iPhone","price":600,"currency":"NZD"}]'), []);
+  assert.deepEqual(parseOpenAICandidates("not json"), []);
 });
 test("diagnostics report configuration without claiming a live provider check", () => {
   const previous = process.env.GEMINI_API_KEY;
