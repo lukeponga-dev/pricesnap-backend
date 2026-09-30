@@ -1,4 +1,4 @@
-import { getAiClient, getModel, withGeminiRetry } from "../ai/client";
+import { getAiClient, getEvidenceModel, withGeminiRetry } from "../ai/client";
 import { parseModelJson } from "../ai/parse-json";
 import type { CandidateListing, IdentifiedItem, MarketEvidence } from "../types";
 import { buildSearchQueries } from "./queries";
@@ -48,7 +48,7 @@ export function groundedCandidates(payload: unknown, grounding?: GroundingMetada
 export async function findMarketEvidence(item: IdentifiedItem, signal?: AbortSignal): Promise<MarketEvidence> {
   const searchQueries = buildSearchQueries(item);
   const ai = getAiClient();
-  const model = getModel();
+  const model = getEvidenceModel();
   const research = await withGeminiRetry(
     () => ai.models.generateContent({
     model,
