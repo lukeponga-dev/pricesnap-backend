@@ -46,7 +46,7 @@ test("zero or one comparable never produces a price", async () => {
 });
 test("uncertain identity, provider errors and aborts use safe codes", async () => {
   await assert.rejects(runEngine("x", "image/jpeg", {}, { ...deps, identify: async () => ({ ...identified, identificationConfidence: 0.1 }) }), { message: "IDENTIFICATION_UNCERTAIN" });
-  for (const [status, message] of [[429, "PROVIDER_RATE_LIMIT"], [403, "SERVICE_NOT_CONFIGURED"], [500, "VALUATION_FAILED"]] as const) {
+  for (const [status, message] of [[429, "PROVIDER_RATE_LIMIT"], [404, "PROVIDER_MODEL_UNAVAILABLE"], [403, "SERVICE_NOT_CONFIGURED"], [500, "VALUATION_FAILED"]] as const) {
     await assert.rejects(runEngine("x", "image/jpeg", {}, { ...deps, identify: async () => { throw { status, message: "secret" }; } }), { message });
   }
   const controller = new AbortController(); controller.abort();
@@ -75,6 +75,8 @@ test("diagnostics report configuration without claiming a live provider check", 
     assert.equal(status.engine.hasApiKey, true);
     assert.equal(status.engine.providerChecked, false);
     assert.equal(status.engine.geminiLatencyMs, null);
+    assert.equal(typeof status.engine.visionModel, "string");
+    assert.equal(typeof status.engine.evidenceModel, "string");
     assert.equal("upstream" in status, false);
     assert.ok(!JSON.stringify(status).includes("test-only"));
   } finally {
