@@ -6,7 +6,7 @@ import { ApiError } from "../../api/errors";
 type OpenAIResponse = { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> };
 
 export function getOpenAIEvidenceModel(): string {
-  return process.env.OPENAI_EVIDENCE_MODEL?.trim() || "gpt-5.6-luna";
+  return process.env.OPENAI_EVIDENCE_MODEL?.trim() || "gpt-5.4-mini";
 }
 
 function responseText(payload: OpenAIResponse): string {
