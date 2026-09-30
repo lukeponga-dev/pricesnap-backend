@@ -171,6 +171,7 @@ export async function runEngine(
     if (error instanceof ApiError) throw error;
     const failure = providerFailure(error);
     if (failure.status === 429) throw new ApiError("PROVIDER_RATE_LIMIT");
+    if (failure.status === 404) throw new ApiError("PROVIDER_MODEL_UNAVAILABLE");
     if (failure.status === 401 || failure.status === 403) throw new ApiError("SERVICE_NOT_CONFIGURED");
     throw new ApiError("VALUATION_FAILED");
   } finally {

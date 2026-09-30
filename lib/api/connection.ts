@@ -1,4 +1,4 @@
-import { ENGINE_VERSION, getModel, hasApiKey } from "../valuation-engine/ai/client";
+import { ENGINE_VERSION, getEvidenceModel, getModel, getVisionModel, hasApiKey } from "../valuation-engine/ai/client";
 
 /** Configuration check only: does not spend quota or claim provider availability. */
 export function connectionStatus() {
@@ -14,6 +14,7 @@ export function connectionStatus() {
     engine: {
       status: configured ? "configured" : "not_configured",
       service: "internal-gemini", hasApiKey: configured, model: getModel(),
+      visionModel: getVisionModel(), evidenceModel: getEvidenceModel(),
       engineVersion: ENGINE_VERSION,
       geminiLatencyMs: null,
       providerChecked: false,
