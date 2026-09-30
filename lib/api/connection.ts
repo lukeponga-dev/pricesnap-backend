@@ -1,8 +1,10 @@
 import { ENGINE_VERSION, getEvidenceModel, getModel, getVisionModel, hasApiKey } from "../valuation-engine/ai/client";
+import { getOpenAIEvidenceModel } from "../valuation-engine/evidence/openai";
 
 /** Configuration check only: does not spend quota or claim provider availability. */
 export function connectionStatus() {
   const configured = hasApiKey();
+  const openAIConfigured = Boolean(process.env.OPENAI_API_KEY?.trim());
   return {
     ok: configured,
     timestamp: Date.now(),
@@ -14,7 +16,8 @@ export function connectionStatus() {
     engine: {
       status: configured ? "configured" : "not_configured",
       service: "internal-gemini", hasApiKey: configured, model: getModel(),
-      visionModel: getVisionModel(), evidenceModel: getEvidenceModel(),
+      visionModel: getVisionModel(), evidenceProvider: openAIConfigured ? "openai" : "gemini",
+      evidenceModel: openAIConfigured ? getOpenAIEvidenceModel() : getEvidenceModel(),
       engineVersion: ENGINE_VERSION,
       geminiLatencyMs: null,
       providerChecked: false,
