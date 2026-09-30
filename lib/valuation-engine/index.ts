@@ -3,7 +3,7 @@ import { identifyItem, normalizeValue } from "./identification";
 import { findMarketEvidence } from "./evidence";
 import { calculateValuation } from "./pricing";
 import { calculateConfidence } from "./confidence";
-import { getModel } from "./ai/client";
+import { getEvidenceModel, getModel, getVisionModel } from "./ai/client";
 import type { AppraisalResponse } from "./types";
 
 export interface EngineOptions { signal?: AbortSignal; requestId?: string }
@@ -71,6 +71,7 @@ function logStage(
   stage: Stage | "engine",
   event: "start" | "success" | "failure",
   startedAt: number,
+  model: string,
   details: Record<string, unknown> = {},
 ): void {
   const entry = JSON.stringify({
@@ -79,7 +80,7 @@ function logStage(
     stage,
     status: event,
     durationMs: Date.now() - startedAt,
-    model: getModel(),
+    model,
     ...details,
   });
   if (level === "error") console.error(entry);
@@ -104,15 +105,15 @@ export async function runEngine(
     controller.signal.throwIfAborted();
 
     const identifyStartedAt = Date.now();
-    logStage("info", requestId, "identify", "start", identifyStartedAt);
+    logStage("info", requestId, "identify", "start", identifyStartedAt, getVisionModel());
     let identified;
     try {
       identified = await dependencies.identify(imageBase64, mimeType, controller.signal);
-      logStage("info", requestId, "identify", "success", identifyStartedAt, {
+      logStage("info", requestId, "identify", "success", identifyStartedAt, getVisionModel(), {
         identificationConfidence: identified.identificationConfidence,
       });
     } catch (error) {
-      logStage("error", requestId, "identify", "failure", identifyStartedAt, safeProviderError(error));
+      logStage("error", requestId, "identify", "failure", identifyStartedAt, getVisionModel(), safeProviderError(error));
       throw error;
     }
 
@@ -122,25 +123,25 @@ export async function runEngine(
     }
 
     const evidenceStartedAt = Date.now();
-    logStage("info", requestId, "evidence", "start", evidenceStartedAt);
+    logStage("info", requestId, "evidence", "start", evidenceStartedAt, getEvidenceModel());
     let evidence;
     try {
       evidence = await dependencies.evidence(identified, controller.signal);
-      logStage("info", requestId, "evidence", "success", evidenceStartedAt, {
+      logStage("info", requestId, "evidence", "success", evidenceStartedAt, getEvidenceModel(), {
         comparableCount: evidence.comparables.length,
       });
     } catch (error) {
-      logStage("error", requestId, "evidence", "failure", evidenceStartedAt, safeProviderError(error));
+      logStage("error", requestId, "evidence", "failure", evidenceStartedAt, getEvidenceModel(), safeProviderError(error));
       throw error;
     }
 
     controller.signal.throwIfAborted();
     const pricingStartedAt = Date.now();
-    logStage("info", requestId, "pricing", "start", pricingStartedAt);
+    logStage("info", requestId, "pricing", "start", pricingStartedAt, "deterministic");
     const enough = evidence.comparables.length >= 2;
     const valuation = enough ? calculateValuation(evidence.comparables)
       : { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
-    logStage("info", requestId, "pricing", "success", pricingStartedAt, {
+    logStage("info", requestId, "pricing", "success", pricingStartedAt, "deterministic", {
       comparableCount: evidence.comparables.length,
       outcome: enough ? "success" : "insufficient_evidence",
     });
@@ -162,10 +163,10 @@ export async function runEngine(
         ...(!enough ? ["Not enough grounded NZD comparables to estimate a value."] : []),
       ],
     };
-    logStage("info", requestId, "engine", "success", engineStartedAt, { outcome: result.status });
+    logStage("info", requestId, "engine", "success", engineStartedAt, getModel(), { outcome: result.status });
     return result;
   } catch (error) {
-    logStage("error", requestId, "engine", "failure", engineStartedAt, safeProviderError(error));
+    logStage("error", requestId, "engine", "failure", engineStartedAt, getModel(), safeProviderError(error));
     if (controller.signal.aborted) throw new ApiError("ANALYSIS_TIMEOUT");
     if (error instanceof ApiError) throw error;
     const failure = providerFailure(error);
