@@ -93,10 +93,11 @@ export async function identifyItem(
 ): Promise<IdentifiedItem> {
   const { data, mimeType } = parseImageBase64(imageBase64, providedMimeType);
   const ai = getAiClient();
+  const model = getVisionModel();
 
   const response = await withGeminiRetry(
     () => ai.models.generateContent({
-    model: getVisionModel(),
+    model,
     contents: [
       createPartFromText(
         [
@@ -117,6 +118,7 @@ export async function identifyItem(
       responseSchema: identifySchema,
     },
   }),
+    model,
     signal,
   );
 
