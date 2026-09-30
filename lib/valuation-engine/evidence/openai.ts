@@ -48,6 +48,30 @@ Only use individual used listings for the same item/variant whose source explici
     }),
   });
   if (!response.ok) {
+    let providerType: string | undefined;
+    let providerCode: string | undefined;
+    let providerMessage: string | undefined;
+    try {
+      const body = await response.json() as {
+        error?: { type?: unknown; code?: unknown; message?: unknown };
+      };
+      providerType = typeof body.error?.type === "string" ? body.error.type : undefined;
+      providerCode = typeof body.error?.code === "string" ? body.error.code : undefined;
+      providerMessage = typeof body.error?.message === "string"
+        ? body.error.message.slice(0, 240)
+        : undefined;
+    } catch {
+      // Do not log raw provider bodies; they are unnecessary for diagnosis.
+    }
+    console.error(JSON.stringify({
+      event: "openai_provider_error",
+      status: response.status,
+      model,
+      providerType,
+      providerCode,
+      providerMessage,
+      providerRequestId: response.headers.get("x-request-id") ?? undefined,
+    }));
     if (response.status === 401 || response.status === 403) throw new ApiError("SERVICE_NOT_CONFIGURED");
     if (response.status === 429) throw new ApiError("PROVIDER_RATE_LIMIT");
     if (response.status === 404) throw new ApiError("PROVIDER_MODEL_UNAVAILABLE");
