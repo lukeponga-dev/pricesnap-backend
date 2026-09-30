@@ -9,7 +9,7 @@ export function getModel(): string {
 
 /** Free-tier model with Google Search grounding for market evidence. */
 export function getEvidenceModel(): string {
-  return process.env.GEMINI_EVIDENCE_MODEL?.trim() || "gemini-2.5-flash-lite";
+  return process.env.GEMINI_EVIDENCE_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash-lite";
 }
 
 /** Free-tier multimodal model used for photo identification only. */
