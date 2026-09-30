@@ -499,6 +499,8 @@ GEMINI_MODEL=your_gemini_model
 OPENAI_API_KEY=your_openai_api_key
 # Optional model override; defaults to o4-mini
 OPENAI_RESALE_MODEL=your_openai_model
+# Optional listing-provider deadline in milliseconds; defaults to 8000 and is capped at 10000
+OPENAI_RESALE_TIMEOUT_MS=8000
 ```
 
 Gemini remains responsible for image identification and grounded market search. OpenAI is used only for seller-facing listing copy. Valuation, evidence validation, seller price targets, and negotiation floors remain deterministic backend logic.

@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { createResaleHandler } from "../lib/api/resale.js";
 import { createValuateHandler } from "../lib/api/valuate.js";
 import { createResalePlan } from "../lib/resale-agent/index.js";
+import { OpenAIListingProvider } from "../lib/resale-agent/providers.js";
 import { calculateSaleStrategy } from "../lib/resale-agent/strategy.js";
 import { validateResaleRequest } from "../lib/validation/resale-request.js";
 import type { AppraisalResponse } from "../lib/valuation-engine/types.js";
@@ -55,6 +56,24 @@ test("insufficient evidence never produces seller prices", async () => {
     basis: "insufficient_evidence",
   });
   assert.match(result.negotiationGuidance[0], /two grounded NZD comparables/);
+});
+
+test("a stalled OpenAI listing call times out and preserves the resale plan", { timeout: 1_000 }, async () => {
+  let providerSignalAborted = false;
+  const stalledFetch: typeof fetch = (_input, init) => new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => {
+      providerSignalAborted = true;
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  });
+  const provider = new OpenAIListingProvider("test-key", "test-model", 10, stalledFetch);
+
+  const result = await createResalePlan(appraisal, {}, { listingProvider: provider });
+
+  assert.equal(providerSignalAborted, true);
+  assert.equal(result.listing.provider, "deterministic");
+  assert.deepEqual(result.valuation, appraisal);
+  assert.equal(result.saleStrategy.targetSalePrice, 520);
 });
 
 test("resale request validates image and bounded seller preferences", () => {

@@ -35,43 +35,65 @@ interface OpenAIResponse {
   output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
 }
 
+const DEFAULT_OPENAI_TIMEOUT_MS = 8_000;
+const MAX_OPENAI_TIMEOUT_MS = 10_000;
+
+function getOpenAITimeout(): number {
+  const configured = Number(process.env.OPENAI_RESALE_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured >= 1_000
+    ? Math.min(Math.round(configured), MAX_OPENAI_TIMEOUT_MS)
+    : DEFAULT_OPENAI_TIMEOUT_MS;
+}
+
 export class OpenAIListingProvider implements ListingProvider {
   constructor(
     private readonly apiKey: string,
     private readonly model = process.env.OPENAI_RESALE_MODEL?.trim() || "o4-mini",
+    private readonly timeoutMs = getOpenAITimeout(),
+    private readonly fetcher: typeof fetch = fetch,
   ) {}
 
   async generate(context: ListingContext, signal?: AbortSignal): Promise<ListingDraft> {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      signal,
-      headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: this.model,
-        instructions: "Write accurate New Zealand resale listing copy. Use only supplied facts. Never invent specifications, accessories, functionality, defects, provenance, or market evidence.",
-        input: JSON.stringify({
-          item: context.valuation.item,
-          condition: context.valuation.condition,
-          saleStrategy: context.strategy,
-          sellerPreferences: context.preferences,
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    const timer = setTimeout(abort, this.timeoutMs);
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+    try {
+      const response = await this.fetcher("https://api.openai.com/v1/responses", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: this.model,
+          instructions: "Write accurate New Zealand resale listing copy. Use only supplied facts. Never invent specifications, accessories, functionality, defects, provenance, or market evidence.",
+          input: JSON.stringify({
+            item: context.valuation.item,
+            condition: context.valuation.condition,
+            saleStrategy: context.strategy,
+            sellerPreferences: context.preferences,
+          }),
+          text: { format: { type: "json_schema", name: "resale_listing", strict: true, schema: {
+            type: "object", additionalProperties: false,
+            properties: { title: { type: "string", maxLength: 80 }, description: { type: "string", maxLength: 2000 } },
+            required: ["title", "description"],
+          } } },
         }),
-        text: { format: { type: "json_schema", name: "resale_listing", strict: true, schema: {
-          type: "object", additionalProperties: false,
-          properties: { title: { type: "string", maxLength: 80 }, description: { type: "string", maxLength: 2000 } },
-          required: ["title", "description"],
-        } } },
-      }),
-    });
-    if (!response.ok) throw new Error(`OpenAI listing provider failed (${response.status})`);
-    const payload = await response.json() as OpenAIResponse;
-    const outputText = payload.output?.flatMap((item) => item.content || [])
-      .find((part) => part.type === "output_text")?.text;
-    if (!outputText) throw new Error("OpenAI listing provider returned no output");
-    const parsed = JSON.parse(outputText) as Record<string, unknown>;
-    const title = cleanText(parsed.title, 80);
-    const description = cleanText(parsed.description, 2000);
-    if (!title || !description) throw new Error("OpenAI listing provider returned invalid output");
-    return { title, description, provider: "openai" };
+      });
+      if (!response.ok) throw new Error(`OpenAI listing provider failed (${response.status})`);
+      const payload = await response.json() as OpenAIResponse;
+      const outputText = payload.output?.flatMap((item) => item.content || [])
+        .find((part) => part.type === "output_text")?.text;
+      if (!outputText) throw new Error("OpenAI listing provider returned no output");
+      const parsed = JSON.parse(outputText) as Record<string, unknown>;
+      const title = cleanText(parsed.title, 80);
+      const description = cleanText(parsed.description, 2000);
+      if (!title || !description) throw new Error("OpenAI listing provider returned invalid output");
+      return { title, description, provider: "openai" };
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+    }
   }
 }
 
