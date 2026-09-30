@@ -14,18 +14,55 @@ export interface EngineDependencies {
 
 type Stage = "identify" | "evidence" | "pricing";
 
-function safeProviderError(error: unknown): Record<string, unknown> {
-  if (!error || typeof error !== "object") {
-    return { errorType: typeof error };
+interface ProviderFailure {
+  status?: number;
+  code?: string;
+  name?: string;
+}
+
+function providerFailure(error: unknown): ProviderFailure {
+  const queue: unknown[] = [error];
+  const seen = new Set<object>();
+  let name: string | undefined;
+
+  for (let depth = 0; queue.length && depth < 8; depth += 1) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || seen.has(current)) continue;
+    seen.add(current);
+    const value = current as Record<string, unknown>;
+    if (!name && typeof value.name === "string") name = value.name.slice(0, 64);
+
+    const numericStatus = typeof value.status === "number" ? value.status
+      : typeof value.statusCode === "number" ? value.statusCode
+      : typeof value.code === "number" ? value.code : undefined;
+    const rawCode = typeof value.code === "string" ? value.code
+      : typeof value.status === "string" ? value.status : undefined;
+    const code = rawCode?.slice(0, 64);
+
+    if (numericStatus || code) {
+      const mappedStatus = numericStatus ??
+        (code === "RESOURCE_EXHAUSTED" ? 429 :
+         code === "UNAUTHENTICATED" ? 401 :
+         code === "PERMISSION_DENIED" ? 403 :
+         code === "NOT_FOUND" ? 404 : undefined);
+      return { status: mappedStatus, code, name };
+    }
+
+    // Google GenAI errors may wrap HTTP/provider details in one of these fields.
+    for (const key of ["error", "cause", "response"]) {
+      if (value[key]) queue.push(value[key]);
+    }
   }
-  const value = error as Record<string, unknown>;
-  const status = typeof value.status === "number" ? value.status : undefined;
-  const code = typeof value.code === "number" || typeof value.code === "string"
-    ? String(value.code).slice(0, 64)
-    : undefined;
-  const name = typeof value.name === "string" ? value.name.slice(0, 64) : "Error";
-  return { errorName: name, ...(status === undefined ? {} : { providerStatus: status }),
-    ...(code === undefined ? {} : { providerCode: code }) };
+  return { name };
+}
+
+function safeProviderError(error: unknown): Record<string, unknown> {
+  const failure = providerFailure(error);
+  return {
+    errorName: failure.name ?? (error === null ? "null" : typeof error),
+    ...(failure.status === undefined ? {} : { providerStatus: failure.status }),
+    ...(failure.code === undefined ? {} : { providerCode: failure.code }),
+  };
 }
 
 function logStage(
@@ -131,9 +168,9 @@ export async function runEngine(
     logStage("error", requestId, "engine", "failure", engineStartedAt, safeProviderError(error));
     if (controller.signal.aborted) throw new ApiError("ANALYSIS_TIMEOUT");
     if (error instanceof ApiError) throw error;
-    const status = error && typeof error === "object" && "status" in error ? error.status : undefined;
-    if (status === 429) throw new ApiError("PROVIDER_RATE_LIMIT");
-    if (status === 401 || status === 403) throw new ApiError("SERVICE_NOT_CONFIGURED");
+    const failure = providerFailure(error);
+    if (failure.status === 429) throw new ApiError("PROVIDER_RATE_LIMIT");
+    if (failure.status === 401 || failure.status === 403) throw new ApiError("SERVICE_NOT_CONFIGURED");
     throw new ApiError("VALUATION_FAILED");
   } finally {
     clearTimeout(timer);
