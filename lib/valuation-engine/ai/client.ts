@@ -7,6 +7,11 @@ export function getModel(): string {
   return process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
 }
 
+/** Free-tier multimodal model used for photo identification only. */
+export function getVisionModel(): string {
+  return process.env.GEMINI_VISION_MODEL?.trim() || "gemini-3.1-flash-lite";
+}
+
 export function hasApiKey(): boolean {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
