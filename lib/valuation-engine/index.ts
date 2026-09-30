@@ -3,7 +3,7 @@ import { identifyItem, normalizeValue } from "./identification";
 import { findMarketEvidence } from "./evidence";
 import { calculateValuation } from "./pricing";
 import { calculateConfidence } from "./confidence";
-import { getEvidenceModel, getModel, getVisionModel } from "./ai/client";
+import { getEvidenceModel, getVisionModel } from "./ai/client";
 import type { AppraisalResponse } from "./types";
 
 export interface EngineOptions { signal?: AbortSignal; requestId?: string }
@@ -163,10 +163,10 @@ export async function runEngine(
         ...(!enough ? ["Not enough grounded NZD comparables to estimate a value."] : []),
       ],
     };
-    logStage("info", requestId, "engine", "success", engineStartedAt, getModel(), { outcome: result.status });
+    logStage("info", requestId, "engine", "success", engineStartedAt, "pipeline", { outcome: result.status, visionModel: getVisionModel(), evidenceModel: getEvidenceModel() });
     return result;
   } catch (error) {
-    logStage("error", requestId, "engine", "failure", engineStartedAt, getModel(), safeProviderError(error));
+    logStage("error", requestId, "engine", "failure", engineStartedAt, "pipeline", { ...safeProviderError(error), visionModel: getVisionModel(), evidenceModel: getEvidenceModel() });
     if (controller.signal.aborted) throw new ApiError("ANALYSIS_TIMEOUT");
     if (error instanceof ApiError) throw error;
     const failure = providerFailure(error);
