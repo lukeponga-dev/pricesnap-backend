@@ -3,7 +3,7 @@ import { ApiError } from "../../api/errors";
 
 export const ENGINE_VERSION = "internal-1.0.0";
 export function getModel(): string {
-  return process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
+  return process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
 }
 export function hasApiKey(): boolean {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
