@@ -7,9 +7,9 @@ export function getModel(): string {
   return process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
 }
 
-/** Free-tier model with Google Search grounding for market evidence. */
+/** Market-evidence model. Search grounding on current Gemini 3.x models requires paid API access. */
 export function getEvidenceModel(): string {
-  return process.env.GEMINI_EVIDENCE_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash-lite";
+  return process.env.GEMINI_EVIDENCE_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
 }
 
 /** Free-tier multimodal model used for photo identification only. */
