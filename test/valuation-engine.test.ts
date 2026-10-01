@@ -19,12 +19,12 @@ const item: IdentifiedItem = {
   identificationConfidence: 0.9,
 };
 
-test("market valuation uses median and marks market evidence", () => {
-  const valuation = calculateValuation([
+test("market valuation uses median and marks market evidence", async () => {
+  const valuation = await calculateValuation([
     comparable("A", 700),
     comparable("B", 600),
     comparable("C", 500),
-  ]);
+  ], 1.0);
 
   assert.deepEqual(valuation, {
     currency: "NZD",
@@ -34,8 +34,8 @@ test("market valuation uses median and marks market evidence", () => {
   });
 });
 
-test("empty evidence cannot produce a synthetic price", () => {
-  assert.throws(() => calculateValuation([]), /Insufficient market evidence/);
+test("empty evidence cannot produce a synthetic price", async () => {
+  await assert.throws(async () => await calculateValuation([], 1.0), /Insufficient market evidence/);
 });
 
 test("unknown-like values normalize to absence", () => {

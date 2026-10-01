@@ -1,7 +1,7 @@
 import { getAiClient, getEvidenceModel, withGeminiRetry } from "../ai/client";
 import { parseModelJson } from "../ai/parse-json";
 import type { CandidateListing, IdentifiedItem, MarketEvidence } from "../types";
-import { buildSearchQueries, buildBroaderSearchQueries } from "./queries";
+import { buildSearchQueries, buildBroaderSearchQueries, buildGlobalMarketplaceQueries } from "./queries";
 import { validateCandidates } from "./validate";
 import type { GroundingMetadata } from "@google/genai";
 
@@ -79,6 +79,14 @@ export async function findMarketEvidence(item: IdentifiedItem, signal?: AbortSig
     const broaderResult = await performResearch(item, searchQueries, signal);
     research = broaderResult.research;
     grounding = broaderResult.grounding;
+  }
+
+  // Global Fallback: if still no grounded supports, try global marketplaces
+  if (!grounding?.groundingSupports?.length) {
+    searchQueries = buildGlobalMarketplaceQueries(item);
+    const globalResult = await performResearch(item, searchQueries, signal);
+    research = globalResult.research;
+    grounding = globalResult.grounding;
   }
 
   const counts = {

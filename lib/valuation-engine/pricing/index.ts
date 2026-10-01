@@ -1,46 +1,38 @@
 /**
  * Pricing step — pure functions over validated comparables.
- *
- * The AI never answers “what is this worth?”. We take surviving market prices,
- * compute a median, and publish a simple NZD band (±15% for now).
  */
 import type { ScoredComparable, Valuation } from "../types";
 
-const USD_TO_NZD = 1.65;
-
-function normalizeToNZD(price: number, currency: string): number {
-  return currency === "USD" ? price * USD_TO_NZD : price;
+function normalizeToNZD(price: number, currency: string, rate: number): number {
+  return currency === "USD" ? price * rate : price;
 }
 
-/**
- * Derive estimated / low / high NZD values from comparable prices.
- * @throws if there are no usable positive prices
- */
-export function calculateValuation(
+export async function calculateValuation(
   comparables: ScoredComparable[],
-): Valuation {
-  const prices = comparables
-    .map((c) => normalizeToNZD(c.price, c.currency))
-    .filter((p) => Number.isFinite(p) && p > 0)
-    .sort((a, b) => a - b);
+  rate: number,
+): Promise<Valuation> {
+  const validComps = comparables
+    .map((c) => ({
+      price: normalizeToNZD(c.price, c.currency, rate),
+      weight: (c.variantMatch * 0.7) + (c.freshness * 0.3),
+    }))
+    .filter((c) => Number.isFinite(c.price) && c.price > 0);
 
-  if (prices.length === 0) {
+  if (validComps.length === 0) {
     throw new Error("Insufficient market evidence");
   }
 
-  // Classic median: average the two middle values when the count is even.
-  const middle = Math.floor(prices.length / 2);
-  const median =
-    prices.length % 2 === 0
-      ? (prices[middle - 1] + prices[middle]) / 2
-      : prices[middle];
+  const totalWeight = validComps.reduce((sum, c) => sum + c.weight, 0);
+  
+  const weightedMedian = totalWeight > 0
+    ? validComps.reduce((sum, c) => sum + (c.price * c.weight), 0) / totalWeight
+    : validComps.reduce((sum, c) => sum + c.price, 0) / validComps.length;
 
   return {
     currency: "NZD",
-    estimatedValue: Math.round(median),
-    // Temporary band — replace with tighter statistics as evidence improves.
-    low: Math.round(median * 0.85),
-    high: Math.round(median * 1.15),
+    estimatedValue: Math.round(weightedMedian),
+    low: Math.round(weightedMedian * 0.85),
+    high: Math.round(weightedMedian * 1.15),
   };
 }
 

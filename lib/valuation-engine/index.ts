@@ -5,6 +5,7 @@ import { findOpenAIMarketEvidence, getOpenAIEvidenceModel } from "./evidence/ope
 import { calculateValuation } from "./pricing";
 import { calculateConfidence } from "./confidence";
 import { getEvidenceModel, getVisionModel, getAiClient, withGeminiRetry } from "./ai/client";
+import { getUsdToNzdRate } from "./currency";
 import type { AppraisalResponse } from "./types";
 
 export interface EngineOptions { signal?: AbortSignal; requestId?: string }
@@ -98,9 +99,9 @@ function logStage(
 
 const USD_TO_NZD = 1.65;
 
-function normalizeToNZD(value: number | null, currency: string): number | null {
+function normalizeToNZD(value: number | null, currency: string, rate: number): number | null {
   if (value === null) return null;
-  return currency === "USD" ? Math.round(value * USD_TO_NZD) : value;
+  return currency === "USD" ? Math.round(value * rate) : value;
 }
 
 /** All recognition, search and pricing execute in this backend. */
@@ -154,12 +155,15 @@ export async function runEngine(
     controller.signal.throwIfAborted();
     const pricingStartedAt = Date.now();
     logStage("info", requestId, "pricing", "start", pricingStartedAt, "deterministic");
+    
+    const rate = await getUsdToNzdRate();
     let enough = evidence.comparables.length >= 2;
     let valuation;
     let isHeuristic = false;
+    let aiConfidence = 0;
 
     if (enough) {
-      valuation = calculateValuation(evidence.comparables);
+      valuation = await calculateValuation(evidence.comparables, rate);
     } else {
       // Fallback to AI estimation when grounded evidence is insufficient
       try {
@@ -171,7 +175,7 @@ export async function runEngine(
             contents: `Estimate the current second-hand resell value for this item: ${JSON.stringify(identified.item)}.
 Condition: ${JSON.stringify(identified.condition)}.
 Available evidence: ${JSON.stringify(evidence.comparables)}.
-Return ONLY a JSON object: {"estimatedValue": number, "low": number, "high": number, "currency": "USD"|"NZD"}.
+Return ONLY a JSON object: {"estimatedValue": number, "low": number, "high": number, "currency": "USD"|"NZD", "selfConfidence": number}.
 Base your estimate on general market knowledge of the brand and model if listings are scarce.`,
             config: { responseMimeType: "application/json" },
           }),
@@ -182,18 +186,19 @@ Base your estimate on general market knowledge of the brand and model if listing
         const currency = parsed.currency || "USD";
         valuation = {
           currency: "NZD" as const,
-          estimatedValue: normalizeToNZD(parsed.estimatedValue, currency),
-          low: normalizeToNZD(parsed.low, currency),
-          high: normalizeToNZD(parsed.high, currency),
+          estimatedValue: normalizeToNZD(parsed.estimatedValue, currency, rate),
+          low: normalizeToNZD(parsed.low, currency, rate),
+          high: normalizeToNZD(parsed.high, currency, rate),
         };
         isHeuristic = true;
-
+        aiConfidence = parsed.selfConfidence ?? 0;
       } catch (error) {
         valuation = { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
       }
     }
 
     logStage("info", requestId, "pricing", "success", pricingStartedAt, "deterministic", {
+
       comparableCount: evidence.comparables.length,
       outcome: enough ? "success" : (isHeuristic ? "heuristic" : "insufficient_evidence"),
     });
@@ -210,7 +215,7 @@ Base your estimate on general market knowledge of the brand and model if listing
       },
       condition: identified.condition,
       valuation,
-      confidence: calculateConfidence(identified, evidence, valuation, isHeuristic),
+      confidence: calculateConfidence(identified, evidence, valuation, isHeuristic, aiConfidence),
       comparables: enough ? evidence.comparables.map(({ title, price, currency, source, url }) =>
         ({ title, price, currency, source, url })) : [],
       generatedAt: new Date().toISOString(),

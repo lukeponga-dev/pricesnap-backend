@@ -56,3 +56,23 @@ export function buildBroaderSearchQueries(item: IdentifiedItem): string[] {
 
   return [...new Set(queries.map((q) => q.replace(/\s+/g, " ").trim()))];
 }
+
+/**
+ * Returns brand-specific queries for global marketplaces.
+ * Used as a final fallback for rare or high-value items.
+ */
+export function buildGlobalMarketplaceQueries(item: IdentifiedItem): string[] {
+  const { brand, model, name } = item.item;
+  const identity = model || name;
+  const includesBrand = brand && identity.toLowerCase().includes(brand.toLowerCase());
+  const base = [includesBrand ? undefined : brand, identity].filter(Boolean).join(" ");
+
+  const queries = [
+    `${base} site:ebay.com`,
+    `${base} site:stockx.com`,
+    `${base} site:grailed.com`,
+    `${base} resale value`,
+  ];
+
+  return [...new Set(queries.map((q) => q.replace(/\s+/g, " ").trim()))];
+}

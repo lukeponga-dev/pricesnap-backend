@@ -26,15 +26,19 @@ export function calculateConfidence(
   evidence: MarketEvidence,
   valuation: Valuation,
   isHeuristic: boolean = false,
+  aiConfidence: number = 0,
 ): Confidence {
   if (valuation.estimatedValue === null || evidence.comparables.length === 0) {
     return { score: 0, level: "low" };
   }
 
   if (isHeuristic) {
-    // Heuristic result: we have a guess but no live evidence.
-    // This is a "lack of data" scenario, not a "high confidence AI guess".
-    return { score: 0.3, level: "low" };
+    // Nuanced Heuristic Score: (AI self-confidence * 0.5) + 0.1 penalty for lack of data
+    const score = clamp((clamp(aiConfidence, 0, 1) * 0.5) + 0.1, 0, 1);
+    return { 
+      score: Math.round(score * 100) / 100, 
+      level: score >= 0.45 ? "medium" : "low" 
+    };
   }
 
   const idScore = clamp(identification.identificationConfidence, 0, 1);
