@@ -14,7 +14,7 @@ export function getEvidenceModel(): string {
 
 /** Free-tier multimodal model used for photo identification only. */
 export function getVisionModel(): string {
-  return process.env.GEMINI_VISION_MODEL?.trim() || "gemini-3.1-flash-lite";
+  return process.env.GEMINI_VISION_MODEL?.trim() || "gemini-3.1-flash";
 }
 
 export function hasApiKey(): boolean {
