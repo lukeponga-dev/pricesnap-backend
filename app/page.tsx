@@ -50,12 +50,13 @@ interface ComparableItem {
 
 interface ValuationResult {
   ok: boolean;
-  status: "success" | "insufficient_evidence";
+  status: "success" | "insufficient_evidence" | "heuristic";
   item: {
     name: string;
     category: string;
     brand?: string;
     model?: string;
+    attributes?: Record<string, string>;
   };
   condition: {
     grade: string;
@@ -1084,9 +1085,9 @@ export default function Home() {
               <div className="space-y-6">
                 <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
                   <h3 className="text-sm font-semibold text-white">Live Item Valuation Pipeline Test</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Send a real photo payload to <code className="text-cyan-400 font-mono">POST /api/valuate</code> to test Gemini recognition, Google Search grounding, NZD valuation, and Android response mapping.
-                  </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Send a real photo payload to <code className="text-cyan-400 font-mono">POST /api/valuate</code> to test Gemini recognition, Google Search grounding, global valuation, and Android response mapping.
+                    </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1225,13 +1226,22 @@ export default function Home() {
                             <span className="text-[11px] font-mono text-cyan-400 uppercase tracking-wider">
                               {valuationResult.item.category || "Item"}
                             </span>
-                            <h4 className="text-base font-bold text-white mt-0.5">{valuationResult.item.name}</h4>
-                            {(valuationResult.item.brand || valuationResult.item.model) && (
-                              <p className="text-xs text-slate-400">
-                                {[valuationResult.item.brand, valuationResult.item.model].filter(Boolean).join(" • ")}
-                              </p>
-                            )}
-                          </div>
+                             <h4 className="text-base font-bold text-white mt-0.5">{valuationResult.item.name}</h4>
+                             {(valuationResult.item.brand || valuationResult.item.model) && (
+                               <p className="text-xs text-slate-400">
+                                 {[valuationResult.item.brand, valuationResult.item.model].filter(Boolean).join(" • ")}
+                               </p>
+                             )}
+                             {valuationResult.item.attributes && Object.entries(valuationResult.item.attributes).length > 0 && (
+                               <div className="flex flex-wrap gap-1 mt-2">
+                                 {Object.entries(valuationResult.item.attributes).map(([key, val]) => (
+                                   <span key={key} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                                     <span className="text-slate-500 capitalize">{key}:</span> {val}
+                                   </span>
+                                 ))}
+                               </div>
+                             )}
+                             </div>
 
                           {/* Price Range */}
                           <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
@@ -1239,19 +1249,19 @@ export default function Home() {
                               <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono">
                                 Estimated Market Value
                               </span>
-                              <div className="text-xl font-extrabold text-emerald-400">
-                                {valuationResult.valuation.estimatedValue !== null
-                                  ? `NZ$ ${valuationResult.valuation.estimatedValue.toFixed(2)}`
-                                  : "Not enough market evidence"}
-                              </div>
+                               <div className="text-xl font-extrabold text-emerald-400">
+                                 {valuationResult.valuation.estimatedValue !== null
+                                   ? `${valuationResult.valuation.currency} ${valuationResult.valuation.estimatedValue.toFixed(2)}`
+                                   : "Not enough market evidence"}
+                               </div>
                             </div>
                             {valuationResult.valuation.low !== null && valuationResult.valuation.high !== null && (
-                              <div className="text-right text-xs font-mono text-slate-400">
-                                <div>Range: NZ$ {valuationResult.valuation.low} – {valuationResult.valuation.high}</div>
-                                <div className="text-[10px] text-slate-500 capitalize">
-                                  Confidence: {valuationResult.confidence.level}
-                                </div>
-                              </div>
+                               <div className="text-right text-xs font-mono text-slate-400">
+                                 <div>Range: {valuationResult.valuation.currency} {valuationResult.valuation.low} – {valuationResult.valuation.high}</div>
+                                 <div className="text-[10px] text-slate-500 capitalize">
+                                   Confidence: {valuationResult.confidence.level}
+                                 </div>
+                               </div>
                             )}
                           </div>
 
@@ -1266,10 +1276,10 @@ export default function Home() {
                             </div>
                             <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
                               <span className="text-slate-500 text-[10px] font-mono block">Grounding Evidence</span>
-                              <span className="font-semibold text-white">
-                                {valuationResult.comparables.length} Verified Sources
-                              </span>
-                              <span className="text-slate-400 text-[10px] block">NZD Verified Listings</span>
+                               <span className="font-semibold text-white">
+                                 {valuationResult.comparables.length} Verified Sources
+                               </span>
+                               <span className="text-slate-400 text-[10px] block">Market Listings</span>
                             </div>
                           </div>
 
@@ -1286,9 +1296,9 @@ export default function Home() {
                                   className="flex items-center justify-between p-2 rounded bg-slate-900/60 hover:bg-slate-900 border border-slate-800/60 text-xs transition-colors"
                                 >
                                   <span className="text-slate-300 truncate max-w-[220px]">{comp.title}</span>
-                                  <span className="font-mono font-semibold text-emerald-400 shrink-0">
-                                    NZ$ {comp.price}
-                                  </span>
+                               <span className="font-mono font-semibold text-emerald-400 shrink-0">
+                                 {comp.currency} {comp.price}
+                               </span>
                                 </a>
                               ))}
                             </div>
