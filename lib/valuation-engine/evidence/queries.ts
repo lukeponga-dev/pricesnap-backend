@@ -28,6 +28,7 @@ export function buildSearchQueries(item: IdentifiedItem): string[] {
   const queries = [
     `${core} used`,
     `${core} used site:trademe.co.nz`,
+    `${core} used site:facebook.com/marketplace`,
     `${core} second hand`,
     `${base} second hand`,
   ];
