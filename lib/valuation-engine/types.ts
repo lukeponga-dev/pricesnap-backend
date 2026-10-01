@@ -19,6 +19,7 @@ export interface AppraisalResponse {
     brand?: string;
     model?: string;
     category: string;
+    attributes?: Record<string, string>;
   };
 
   condition: {

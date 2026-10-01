@@ -192,8 +192,13 @@ Base your estimate on general market knowledge of the brand and model if listing
     const result: AppraisalResponse = {
       ok: true,
       status: enough ? "success" : (isHeuristic ? "heuristic" : "insufficient_evidence"),
-      item: { name: identified.item.name, category: identified.item.category,
-        brand: identified.item.brand, model: identified.item.model },
+      item: { 
+        name: identified.item.name, 
+        category: identified.item.category,
+        brand: identified.item.brand, 
+        model: identified.item.model,
+        attributes: identified.item.attributes 
+      },
       condition: identified.condition,
       valuation,
       confidence: calculateConfidence(identified, evidence, valuation),
