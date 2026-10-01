@@ -82,24 +82,22 @@ interface ValuationResult {
 
 export default function Home() {
   const [data, setData] = useState<ConnectionData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
-  const [countdown, setCountdown] = useState<number>(15);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [countdown, setCountdown] = useState(15);
   const [activeTab, setActiveTab] = useState<"diagnostics" | "valuate" | "android">("diagnostics");
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  // Ping Inspector state
-  const [pingRunning, setPingRunning] = useState<boolean>(false);
+  const [pingRunning, setPingRunning] = useState(false);
   const [pingResult, setPingResult] = useState<{ status: number; latency: number; payload: unknown } | null>(null);
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
-  // Valuation test state
   const [testImageBase64, setTestImageBase64] = useState<string | null>(null);
-  const [testMimeType, setTestMimeType] = useState<string>("image/jpeg");
+  const [testMimeType, setTestMimeType] = useState("image/jpeg");
   const [testImagePreview, setTestImagePreview] = useState<string | null>(null);
-  const [valuating, setValuating] = useState<boolean>(false);
+  const [valuating, setValuating] = useState(false);
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
   const [valuationError, setValuationError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +159,6 @@ export default function Home() {
     }
   }, [addLog]);
 
-  // Initial load via fetch on mount
   useEffect(() => {
     let cancelled = false;
     const start = performance.now();
@@ -209,7 +206,6 @@ export default function Home() {
     };
   }, [addLog]);
 
-  // Auto-refresh timer
   useEffect(() => {
     if (!autoRefresh) return;
 
@@ -226,7 +222,6 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [autoRefresh, checkConnection]);
 
-  // Quick Ping backend action
   const handlePingBackend = async () => {
     setPingRunning(true);
     const start = performance.now();
@@ -259,7 +254,6 @@ export default function Home() {
     }
   };
 
-  // Generate a sample synthetic item image on client canvas
   const handleLoadSampleImage = (type: "camera" | "watch" | "lens") => {
     const canvas = document.createElement("canvas");
     canvas.width = 400;
@@ -388,7 +382,6 @@ export default function Home() {
     setValuationError(null);
   };
 
-  // Handle local file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -415,7 +408,6 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
-  // Run live valuation smoke test via POST /api/valuate
   const handleRunValuation = async () => {
     if (!testImageBase64) {
       setValuationError("Please load a sample image or upload a photo first.");
