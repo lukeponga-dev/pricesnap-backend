@@ -26,10 +26,10 @@ export function buildSearchQueries(item: IdentifiedItem): string[] {
   const core = [base, attrSuffix].filter(Boolean).join(" ").trim();
 
   const queries = [
-    `${core} used NZ`,
+    `${core} used`,
     `${core} used site:trademe.co.nz`,
-    // A broader query still names the item, without optional cosmetic attributes.
-    `${base} second hand New Zealand`,
+    `${core} second hand`,
+    `${base} second hand`,
   ];
 
   // De-dupe after whitespace normalization.

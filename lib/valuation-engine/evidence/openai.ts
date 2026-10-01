@@ -21,9 +21,10 @@ export function parseOpenAICandidates(text: string): CandidateListing[] {
     return parsed.flatMap(row => {
       if (!row || typeof row !== "object") return [];
       const v = row as Record<string, unknown>;
-      if (typeof v.title !== "string" || typeof v.price !== "number" || v.currency !== "NZD" ||
+      if (typeof v.title !== "string" || typeof v.price !== "number" || 
+          (v.currency !== "NZD" && v.currency !== "USD") ||
           typeof v.url !== "string" || !v.url.startsWith("https://")) return [];
-      return [{ title: v.title, price: v.price, currency: "NZD",
+      return [{ title: v.title, price: v.price, currency: v.currency as "NZD" | "USD",
         source: typeof v.source === "string" ? v.source : new URL(v.url).hostname,
         url: v.url, listedAt: typeof v.listedAt === "string" ? v.listedAt : undefined }];
     });
@@ -41,10 +42,10 @@ export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: Ab
     signal,
     body: JSON.stringify({
       model, tools: [{ type: "web_search" }], tool_choice: "auto",
-      input: `Research current New Zealand second-hand listings for this item: ${JSON.stringify(item.item)}.
+      input: `Research current second-hand listings for this item: ${JSON.stringify(item.item)}.
 Suggested queries: ${JSON.stringify(searchQueries)}.
-Return ONLY a JSON array of {"title":string,"price":number,"currency":"NZD","source":string,"url":string,"listedAt":string|null}.
-Only use individual used listings for the same item/variant whose source explicitly shows NZD or NZ$. Never convert currency or infer it from a bare $. Exclude accessories, bundles, retail-new stock, search pages and unrelated variants. URL must be an actual source discovered by web search. Never invent listings, URLs or prices. Return [] when evidence is insufficient.`,
+Return ONLY a JSON array of {"title":string,"price":number,"currency":"NZD"|"USD","source":string,"url":string,"listedAt":string|null}.
+Only use individual used listings for the same item/variant whose source explicitly shows NZD or USD. Never convert currency or infer it from a bare $. Exclude accessories, bundles, retail-new stock, search pages and unrelated variants. URL must be an actual source discovered by web search. Never invent listings, URLs or prices. Return [] when evidence is insufficient.`,
     }),
   });
   if (!response.ok) {
@@ -80,7 +81,7 @@ Only use individual used listings for the same item/variant whose source explici
   const payload = await response.json() as OpenAIResponse;
   const candidates = parseOpenAICandidates(responseText(payload));
   const comparables = validateCandidates(item, candidates).map(c => ({
-    title: c.title, price: c.price, currency: "NZD", source: c.source, url: c.url,
+    title: c.title, price: c.price, currency: c.currency, source: c.source, url: c.url,
     variantMatch: c.variantMatch, freshness: c.freshness,
   }));
   console.info(JSON.stringify({ event: "market_evidence", provider: "openai", model, extracted: candidates.length, accepted: comparables.length }));
