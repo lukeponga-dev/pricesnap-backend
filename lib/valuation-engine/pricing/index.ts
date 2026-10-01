@@ -6,6 +6,12 @@
  */
 import type { ScoredComparable, Valuation } from "../types";
 
+const USD_TO_NZD = 1.65;
+
+function normalizeToNZD(price: number, currency: string): number {
+  return currency === "USD" ? price * USD_TO_NZD : price;
+}
+
 /**
  * Derive estimated / low / high NZD values from comparable prices.
  * @throws if there are no usable positive prices
@@ -14,7 +20,7 @@ export function calculateValuation(
   comparables: ScoredComparable[],
 ): Valuation {
   const prices = comparables
-    .map((c) => c.price)
+    .map((c) => normalizeToNZD(c.price, c.currency))
     .filter((p) => Number.isFinite(p) && p > 0)
     .sort((a, b) => a - b);
 

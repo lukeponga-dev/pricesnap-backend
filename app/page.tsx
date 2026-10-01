@@ -1325,16 +1325,46 @@ export default function Home() {
             )}
 
             {/* TAB 3: ANDROID CLIENT INTEGRATION */}
-            {activeTab === "android" && (
-              <div className="space-y-6">
-                <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-                  <h3 className="text-sm font-semibold text-white">Android Retrofit / OkHttp Integration Guide</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Connect your Android application to this backend instance using Kotlin and Retrofit.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
+             {activeTab === "android" && (
+               <div className="space-y-6">
+                 <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                   <h3 className="text-sm font-semibold text-white">Android Integration & API Reference</h3>
+                   <p className="text-xs text-slate-400 mt-1">
+                     Reference the endpoints below to integrate the PriceSnap valuation engine into your Kotlin/Android application.
+                   </p>
+                 </div>
+ 
+                 {/* API Endpoint Table */}
+                 <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40">
+                   <table className="w-full text-left text-xs font-mono">
+                     <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider">
+                       <tr>
+                         <th className="px-4 py-2 font-semibold">Endpoint</th>
+                         <th className="px-4 py-2 font-semibold">Method</th>
+                         <th className="px-4 py-2 font-semibold">Description</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-800">
+                       <tr>
+                         <td className="px-4 py-3 text-cyan-400">/api/valuate</td>
+                         <td className="px-4 py-3 text-emerald-400">POST</td>
+                         <td className="px-4 py-3 text-slate-300">Core valuation pipeline. Accepts image $\rightarrow$ Returns appraisal.</td>
+                       </tr>
+                       <tr>
+                         <td className="px-4 py-3 text-cyan-400">/api/connection</td>
+                         <td className="px-4 py-3 text-emerald-400">GET</td>
+                         <td className="px-4 py-3 text-slate-300">System health check & engine configuration status.</td>
+                       </tr>
+                       <tr>
+                         <td className="px-4 py-3 text-cyan-400">/api/ping</td>
+                         <td className="px-4 py-3 text-emerald-400">GET</td>
+                         <td className="px-4 py-3 text-slate-300">Low-latency heartbeat check.</td>
+                       </tr>
+                     </tbody>
+                   </table>
+                 </div>
+ 
+                     <div className="space-y-4">
                   {/* Kotlin DTO */}
                   <div>
                     <div className="flex items-center justify-between mb-2">

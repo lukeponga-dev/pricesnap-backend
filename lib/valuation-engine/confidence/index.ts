@@ -25,10 +25,18 @@ export function calculateConfidence(
   identification: IdentifiedItem,
   evidence: MarketEvidence,
   valuation: Valuation,
+  isHeuristic: boolean = false,
 ): Confidence {
   if (valuation.estimatedValue === null || evidence.comparables.length === 0) {
     return { score: 0, level: "low" };
   }
+
+  if (isHeuristic) {
+    // Heuristic result: we have a guess but no live evidence.
+    // This is a "lack of data" scenario, not a "high confidence AI guess".
+    return { score: 0.3, level: "low" };
+  }
+
   const idScore = clamp(identification.identificationConfidence, 0, 1);
   const countScore = comparableCountScore(evidence.comparables.length);
   const consistencyScore = priceConsistencyScore(

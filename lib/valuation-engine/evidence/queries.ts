@@ -36,3 +36,23 @@ export function buildSearchQueries(item: IdentifiedItem): string[] {
   // De-dupe after whitespace normalization.
   return [...new Set(queries.map((q) => q.replace(/\s+/g, " ").trim()))];
 }
+
+/**
+ * Returns a broader set of queries by removing attributes.
+ * Used when the initial specific search fails to find evidence.
+ */
+export function buildBroaderSearchQueries(item: IdentifiedItem): string[] {
+  const { brand, model, name } = item.item;
+  const identity = model || name;
+  const includesBrand = brand && identity.toLowerCase().includes(brand.toLowerCase());
+  const base = [includesBrand ? undefined : brand, identity].filter(Boolean).join(" ");
+
+  const queries = [
+    `${base} used`,
+    `${base} used site:trademe.co.nz`,
+    `${base} used site:facebook.com/marketplace`,
+    `${base} second hand`,
+  ];
+
+  return [...new Set(queries.map((q) => q.replace(/\s+/g, " ").trim()))];
+}

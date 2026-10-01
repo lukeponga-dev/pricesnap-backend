@@ -201,7 +201,7 @@ Base your estimate on general market knowledge of the brand and model if listing
       },
       condition: identified.condition,
       valuation,
-      confidence: calculateConfidence(identified, evidence, valuation),
+      confidence: calculateConfidence(identified, evidence, valuation, isHeuristic),
       comparables: enough ? evidence.comparables.map(({ title, price, currency, source, url }) =>
         ({ title, price, currency, source, url })) : [],
       generatedAt: new Date().toISOString(),
@@ -212,6 +212,7 @@ Base your estimate on general market knowledge of the brand and model if listing
         ...(isHeuristic ? ["This is an AI estimate based on general market knowledge, not verified live listings."] : []),
       ],
     };
+
     logStage("info", requestId, "engine", "success", engineStartedAt, "pipeline", { outcome: result.status, visionModel: getVisionModel(), evidenceModel: configuredEvidenceModel() });
     return result;
   } catch (error) {
