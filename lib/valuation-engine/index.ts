@@ -96,6 +96,13 @@ function logStage(
   else console.info(entry);
 }
 
+const USD_TO_NZD = 1.65;
+
+function normalizeToNZD(value: number | null, currency: string): number | null {
+  if (value === null) return null;
+  return currency === "USD" ? Math.round(value * USD_TO_NZD) : value;
+}
+
 /** All recognition, search and pricing execute in this backend. */
 export async function runEngine(
   imageBase64: string,
@@ -172,13 +179,15 @@ Base your estimate on general market knowledge of the brand and model if listing
           controller.signal,
         );
         const parsed = JSON.parse(estimate.text ?? "");
+        const currency = parsed.currency || "USD";
         valuation = {
-          currency: parsed.currency || "USD",
-          estimatedValue: parsed.estimatedValue,
-          low: parsed.low,
-          high: parsed.high,
+          currency: "NZD" as const,
+          estimatedValue: normalizeToNZD(parsed.estimatedValue, currency),
+          low: normalizeToNZD(parsed.low, currency),
+          high: normalizeToNZD(parsed.high, currency),
         };
         isHeuristic = true;
+
       } catch (error) {
         valuation = { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
       }
