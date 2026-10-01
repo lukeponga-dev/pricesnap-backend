@@ -147,17 +147,51 @@ export async function runEngine(
     controller.signal.throwIfAborted();
     const pricingStartedAt = Date.now();
     logStage("info", requestId, "pricing", "start", pricingStartedAt, "deterministic");
-    const enough = evidence.comparables.length >= 2;
-    const valuation = enough ? calculateValuation(evidence.comparables)
-      : { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
+    let enough = evidence.comparables.length >= 2;
+    let valuation;
+    let isHeuristic = false;
+
+    if (enough) {
+      valuation = calculateValuation(evidence.comparables);
+    } else {
+      // Fallback to AI estimation when grounded evidence is insufficient
+      try {
+        const ai = getAiClient();
+        const model = getEvidenceModel();
+        const estimate = await withGeminiRetry(
+          () => ai.models.generateContent({
+            model,
+            contents: `Estimate the current second-hand resell value for this item: ${JSON.stringify(identified.item)}.
+Condition: ${JSON.stringify(identified.condition)}.
+Available evidence: ${JSON.stringify(evidence.comparables)}.
+Return ONLY a JSON object: {"estimatedValue": number, "low": number, "high": number, "currency": "USD"|"NZD"}.
+Base your estimate on general market knowledge of the brand and model if listings are scarce.`,
+            config: { responseMimeType: "application/json" },
+          }),
+          model,
+          controller.signal,
+        );
+        const parsed = JSON.parse(estimate.text);
+        valuation = {
+          currency: parsed.currency || "USD",
+          estimatedValue: parsed.estimatedValue,
+          low: parsed.low,
+          high: parsed.high,
+        };
+        isHeuristic = true;
+      } catch (error) {
+        valuation = { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
+      }
+    }
+
     logStage("info", requestId, "pricing", "success", pricingStartedAt, "deterministic", {
       comparableCount: evidence.comparables.length,
-      outcome: enough ? "success" : "insufficient_evidence",
+      outcome: enough ? "success" : (isHeuristic ? "heuristic" : "insufficient_evidence"),
     });
 
     const result: AppraisalResponse = {
       ok: true,
-      status: enough ? "success" : "insufficient_evidence",
+      status: enough ? "success" : (isHeuristic ? "heuristic" : "insufficient_evidence"),
       item: { name: identified.item.name, category: identified.item.category,
         brand: identified.item.brand, model: identified.item.model },
       condition: identified.condition,
@@ -169,7 +203,8 @@ export async function runEngine(
       warnings: [
         "Search evidence can be incomplete or stale; asking prices are not completed sales.",
         "Condition is visual only; functionality is untested. The price band is a heuristic, not a statistical confidence interval.",
-        ...(!enough ? ["Not enough grounded NZD comparables to estimate a value."] : []),
+        ...(!enough && !isHeuristic ? ["Not enough grounded comparables to estimate a value."] : []),
+        ...(isHeuristic ? ["This is an AI estimate based on general market knowledge, not verified live listings."] : []),
       ],
     };
     logStage("info", requestId, "engine", "success", engineStartedAt, "pipeline", { outcome: result.status, visionModel: getVisionModel(), evidenceModel: configuredEvidenceModel() });
