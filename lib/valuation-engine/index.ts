@@ -171,7 +171,7 @@ Base your estimate on general market knowledge of the brand and model if listing
           model,
           controller.signal,
         );
-        const parsed = JSON.parse(estimate.text);
+        const parsed = JSON.parse(estimate.text ?? "");
         valuation = {
           currency: parsed.currency || "USD",
           estimatedValue: parsed.estimatedValue,
