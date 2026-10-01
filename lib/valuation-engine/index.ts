@@ -4,7 +4,7 @@ import { findMarketEvidence } from "./evidence";
 import { findOpenAIMarketEvidence, getOpenAIEvidenceModel } from "./evidence/openai";
 import { calculateValuation } from "./pricing";
 import { calculateConfidence } from "./confidence";
-import { getEvidenceModel, getVisionModel } from "./ai/client";
+import { getEvidenceModel, getVisionModel, getAiClient, withGeminiRetry } from "./ai/client";
 import type { AppraisalResponse } from "./types";
 
 export interface EngineOptions { signal?: AbortSignal; requestId?: string }

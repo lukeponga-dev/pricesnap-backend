@@ -12,7 +12,7 @@ export type { ValuateRequest as ImageRequest } from "../validation/valuate-reque
 /** Public appraisal result returned by `valuateImage` / POST /api/valuate. */
 export interface AppraisalResponse {
   ok: true;
-  status: "success" | "insufficient_evidence";
+  status: "success" | "insufficient_evidence" | "heuristic";
   warnings: string[];
   item: {
     name: string;
@@ -29,7 +29,7 @@ export interface AppraisalResponse {
   };
 
   valuation: {
-    currency: "NZD";
+    currency: "NZD" | "USD";
     estimatedValue: number | null;
     low: number | null;
     high: number | null;
