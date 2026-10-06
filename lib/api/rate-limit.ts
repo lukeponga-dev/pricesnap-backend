@@ -14,9 +14,8 @@ function configuredLimit(caller: VerifiedCaller): number {
 
 /**
  * Application-level per-UID spending guard. It runs before provider calls.
- * Vercel's WAF supplies the distributed per-IP outer guard; this UID guard
- * additionally prevents one authenticated session from consuming the process
- * budget unchecked.
+ * This is a process-local per-UID guard. It prevents unchecked spend within
+ * an instance but is not a globally durable quota across serverless instances.
  */
 export function enforceValuationLimit(caller: VerifiedCaller, now = Date.now()): void {
   const windowStart = Math.floor(now / WINDOW_MS) * WINDOW_MS;
