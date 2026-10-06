@@ -28,13 +28,21 @@ export function calculateConfidence(
   isHeuristic = false,
   aiConfidence = 0,
 ): Confidence {
-  if (valuation.estimatedValue === null || evidence.comparables.length === 0) {
+  if (valuation.estimatedValue === null) {
     return { score: 0, level: "low" };
   }
 
   if (isHeuristic) {
-    // Heuristic estimates cannot receive high confidence.
-    const score = clamp(clamp(aiConfidence, 0, 1) * 0.5 + 0.1, 0, 1);
+    // A heuristic valuation has no grounded market-evidence component, but it
+    // should not be reported as 0% when identification and estimation both
+    // succeeded. Keep it capped below "high" and weight identity alongside
+    // the estimator's self-confidence.
+    if (evidence.comparables.length === 0) {
+    return { score: 0, level: "low" };
+  }
+
+  const idScore = clamp(identification.identificationConfidence, 0, 1);
+    const score = clamp(idScore * 0.2 + clamp(aiConfidence, 0, 1) * 0.3, 0, 0.49);
     return {
       score: Math.round(score * 100) / 100,
       level: score >= 0.45 ? "medium" : "low",
