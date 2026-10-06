@@ -1,15 +1,10 @@
 import { ApiError, apiErrorResponse } from "./errors";
 import { validateValuateRequest } from "../validation/valuate-request";
 import { valuateImage } from "../valuation-engine";
-import { enforceProviderAccess } from "./access";
 
-export function createValuateHandler(engine = valuateImage, authorize: (request: Request) => Promise<void> = enforceProviderAccess) {
+export function createValuateHandler(engine = valuateImage) {
   return async (request: Request): Promise<Response> => {
     try {
-      // Authentication, attestation and spend controls must complete before
-      // parsing the image or making any provider call.
-      await authorize(request);
-
       let body: unknown;
       try {
         body = await request.json();

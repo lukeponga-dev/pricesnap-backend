@@ -2,18 +2,13 @@ import { ApiError, apiErrorResponse } from "./errors";
 import { createResalePlan } from "../resale-agent";
 import { validateResaleRequest } from "../validation/resale-request";
 import { valuateImage } from "../valuation-engine";
-import { enforceProviderAccess } from "./access";
 
 export function createResaleHandler(
   engine = valuateImage,
   planner = createResalePlan,
-  authorize: (request: Request) => Promise<void> = enforceProviderAccess,
 ) {
   return async (request: Request): Promise<Response> => {
     try {
-      // Gate the entire paid resale workflow before valuation or listing-provider work.
-      await authorize(request);
-
       let body: unknown;
       try {
         body = await request.json();

@@ -4,7 +4,6 @@ export type ApiErrorCode =
   | "INVALID_MIME_TYPE"
   | "IMAGE_TOO_LARGE"
   | "UNAUTHORIZED"
-  | "RATE_LIMITED"
   | "INSUFFICIENT_EVIDENCE"
   | "SERVICE_NOT_CONFIGURED"
   | "PROVIDER_RATE_LIMIT"
@@ -23,8 +22,7 @@ const errors: Record<ApiErrorCode, { status: number; error: string }> = {
   INVALID_IMAGE: { status: 400, error: "Invalid image" },
   INVALID_MIME_TYPE: { status: 400, error: "Unsupported image MIME type" },
   IMAGE_TOO_LARGE: { status: 413, error: "Image is too large" },
-  UNAUTHORIZED: { status: 401, error: "Valid Firebase authentication and App Check are required" },
-  RATE_LIMITED: { status: 429, error: "Daily valuation limit reached" },
+  UNAUTHORIZED: { status: 401, error: "Authentication required" },
   INSUFFICIENT_EVIDENCE: { status: 422, error: "Insufficient market evidence" },
   SERVICE_NOT_CONFIGURED: { status: 503, error: "Valuation service is not configured" },
   PROVIDER_RATE_LIMIT: { status: 429, error: "Valuation service is busy; try again later" },
