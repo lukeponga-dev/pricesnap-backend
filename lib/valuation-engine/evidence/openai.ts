@@ -102,6 +102,7 @@ function priceAppearsInSource(body: string, candidate: CandidateListing): boolea
 
 async function verifyCandidateSource(candidate: CandidateListing, signal?: AbortSignal): Promise<boolean> {
   try {
+    if (!candidate.url) return false;
     const source = new URL(candidate.url);
     if (source.protocol !== "https:" || source.username || source.password) return false;
     const response = await fetch(source, {
