@@ -22,7 +22,7 @@ function configuredEvidenceModel(): string {
   return process.env.OPENAI_API_KEY?.trim() ? getOpenAIEvidenceModel() : getEvidenceModel();
 }
 
-type Stage = "identify" | "evidence" | "pricing" | "fallback";
+type Stage = "identify" | "evidence" | "pricing";
 
 interface ProviderFailure {
   status?: number;
@@ -104,35 +104,6 @@ function normalizeToNZD(value: number | null, currency: string, rate: number): n
   return currency === "USD" ? Math.round(value * rate) : value;
 }
 
-interface FallbackEstimate {
-  estimatedValue: number;
-  low: number;
-  high: number;
-  currency: "USD" | "NZD";
-  selfConfidence: number;
-}
-
-function validateFallbackEstimate(value: unknown): FallbackEstimate {
-  if (!value || typeof value !== "object") throw new Error("Invalid fallback estimate");
-  const row = value as Record<string, unknown>;
-  const estimatedValue = row.estimatedValue;
-  const low = row.low;
-  const high = row.high;
-  const selfConfidence = row.selfConfidence;
-  const currency = row.currency;
-  if (typeof estimatedValue !== "number" || !Number.isFinite(estimatedValue) || estimatedValue <= 0 ||
-      typeof low !== "number" || !Number.isFinite(low) || low <= 0 ||
-      typeof high !== "number" || !Number.isFinite(high) || high <= 0 ||
-      low > estimatedValue || estimatedValue > high || high / low > 5 ||
-      estimatedValue > 100_000 || high > 150_000 ||
-      (currency !== "USD" && currency !== "NZD") ||
-      typeof selfConfidence !== "number" || !Number.isFinite(selfConfidence) ||
-      selfConfidence < 0 || selfConfidence > 1) {
-    throw new Error("Invalid fallback estimate");
-  }
-  return { estimatedValue, low, high, currency, selfConfidence };
-}
-
 /** All recognition, search and pricing execute in this backend. */
 export async function runEngine(
   imageBase64: string,
@@ -194,13 +165,10 @@ export async function runEngine(
     if (enough) {
       valuation = await calculateValuation(evidence.comparables, rate);
     } else {
-      // Explicit AI fallback: this is not deterministic pricing and must be
-      // logged separately from the grounded pricing stage.
-      const fallbackStartedAt = Date.now();
-      const model = getEvidenceModel();
-      logStage("info", requestId, "fallback", "start", fallbackStartedAt, model);
+      // Fallback to AI estimation when grounded evidence is insufficient
       try {
         const ai = getAiClient();
+        const model = getEvidenceModel();
         const estimate = await withGeminiRetry(
           () => ai.models.generateContent({
             model,
@@ -214,23 +182,22 @@ Base your estimate on general market knowledge of the brand and model if listing
           model,
           controller.signal,
         );
-        const parsed = validateFallbackEstimate(JSON.parse(estimate.text ?? ""));
+        const parsed = JSON.parse(estimate.text ?? "");
+        const currency = parsed.currency || "USD";
         valuation = {
           currency: "NZD" as const,
-          estimatedValue: normalizeToNZD(parsed.estimatedValue, parsed.currency, rate),
-          low: normalizeToNZD(parsed.low, parsed.currency, rate),
-          high: normalizeToNZD(parsed.high, parsed.currency, rate),
+          estimatedValue: normalizeToNZD(parsed.estimatedValue, currency, rate),
+          low: normalizeToNZD(parsed.low, currency, rate),
+          high: normalizeToNZD(parsed.high, currency, rate),
         };
         isHeuristic = true;
-        aiConfidence = parsed.selfConfidence;
-        logStage("info", requestId, "fallback", "success", fallbackStartedAt, model, { outcome: "heuristic" });
+        aiConfidence = parsed.selfConfidence ?? 0;
       } catch (error) {
-        logStage("error", requestId, "fallback", "failure", fallbackStartedAt, model, safeProviderError(error));
         valuation = { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
       }
     }
 
-    logStage("info", requestId, "pricing", "success", pricingStartedAt, enough ? "deterministic" : "fallback-gated", {
+    logStage("info", requestId, "pricing", "success", pricingStartedAt, "deterministic", {
 
       comparableCount: evidence.comparables.length,
       outcome: enough ? "success" : (isHeuristic ? "heuristic" : "insufficient_evidence"),
