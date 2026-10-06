@@ -44,7 +44,7 @@ async function fetchAppCheckKeys(): Promise<Jwk[]> {
   return keys;
 }
 function verifySignature(signed: string, signature: Buffer, key: string | Jwk): boolean {
-  const publicKey = typeof key === "string" ? key : createPublicKey({ key, format: "jwk" });
+  const publicKey = typeof key === "string" ? key : createPublicKey({ key: key as unknown as Record<string, string>, format: "jwk" });
   const verifier = createVerify("RSA-SHA256");
   verifier.update(signed); verifier.end();
   return verifier.verify(publicKey, signature);
