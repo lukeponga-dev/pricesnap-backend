@@ -109,7 +109,7 @@ test("resale endpoint validates before valuation and uses the engine result", as
 });
 
 test("existing valuation endpoint response remains unchanged", async () => {
-  const handler = createValuateHandler(async () => appraisal);
+  const handler = createValuateHandler(async () => appraisal, async () => {});
   const response = await handler(new Request("https://backend.test/api/valuate", { method: "POST", body: JSON.stringify({
     imageBase64: "aGVsbG8=", mimeType: "image/jpeg",
   }) }));
