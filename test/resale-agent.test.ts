@@ -91,7 +91,7 @@ test("resale endpoint validates before valuation and uses the engine result", as
     saleStrategy: calculateSaleStrategy(valuation),
     listing: { title: preferences?.marketplace || "Draft", description: "Draft", provider: "deterministic" },
     negotiationGuidance: [], listingChecklist: [],
-  }));
+  }), async () => {});
   const invalid = await handler(new Request("https://backend.test/api/resale", { method: "POST", body: "{" }));
   assert.equal(invalid.status, 400);
   assert.equal((await invalid.json()).code, "INVALID_REQUEST");
@@ -106,6 +106,25 @@ test("resale endpoint validates before valuation and uses the engine result", as
   assert.equal(body.listing.title, "Trade Me");
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.equal(calls, 1);
+});
+
+test("resale endpoint rejects before any provider-backed work when access fails", async () => {
+  let engineCalls = 0;
+  let plannerCalls = 0;
+  const handler = createResaleHandler(
+    async () => { engineCalls++; return appraisal; },
+    async () => { plannerCalls++; throw new Error("planner must not run"); },
+    async () => { throw new Error("blocked"); },
+  );
+
+  const response = await handler(new Request("https://backend.test/api/resale", {
+    method: "POST",
+    body: JSON.stringify({ imageBase64: "aGVsbG8=", mimeType: "image/jpeg" }),
+  }));
+
+  assert.equal(response.status, 500);
+  assert.equal(engineCalls, 0);
+  assert.equal(plannerCalls, 0);
 });
 
 test("existing valuation endpoint response remains unchanged", async () => {
