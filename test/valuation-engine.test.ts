@@ -5,6 +5,7 @@ import { validateCandidates } from "../lib/valuation-engine/evidence/validate.js
 import { buildSearchQueries } from "../lib/valuation-engine/evidence/queries.js";
 import { normalizeValue } from "../lib/valuation-engine/identification/index.js";
 import { calculateValuation } from "../lib/valuation-engine/pricing/index.js";
+import { calculateConfidence } from "../lib/valuation-engine/confidence/index.js";
 import type { IdentifiedItem, ScoredComparable } from "../lib/valuation-engine/types.js";
 
 const item: IdentifiedItem = {
@@ -136,4 +137,28 @@ test("rejects missing currency, unrelated products and conflicting storage", () 
     listing("Samsung Galaxy 256GB", 600),
     listing("iPhone 13 Pro 128GB", 600),
   ]), []);
+});
+
+test("heuristic valuation with no comparables does not report zero confidence", () => {
+  const confidence = calculateConfidence(
+    item,
+    { searchQueries: [], comparables: [] },
+    { currency: "NZD", estimatedValue: 75, low: 60, high: 90 },
+    true,
+    0.7,
+  );
+
+  assert.deepEqual(confidence, { score: 0.39, level: "low" });
+});
+
+test("missing valuation still reports zero confidence", () => {
+  const confidence = calculateConfidence(
+    item,
+    { searchQueries: [], comparables: [] },
+    { currency: "NZD", estimatedValue: null, low: null, high: null },
+    false,
+    0,
+  );
+
+  assert.deepEqual(confidence, { score: 0, level: "low" });
 });

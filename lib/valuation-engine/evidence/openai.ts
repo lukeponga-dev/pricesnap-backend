@@ -1,5 +1,5 @@
 import type { CandidateListing, IdentifiedItem, MarketEvidence } from "../types";
-import { buildSearchQueries } from "./queries";
+import { buildBroaderSearchQueries, buildGlobalMarketplaceQueries, buildSearchQueries } from "./queries";
 import { validateCandidates } from "./validate";
 import { ApiError } from "../../api/errors";
 
@@ -31,11 +31,13 @@ export function parseOpenAICandidates(text: string): CandidateListing[] {
   } catch { return []; }
 }
 
-export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: AbortSignal): Promise<MarketEvidence> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new ApiError("SERVICE_NOT_CONFIGURED");
-  const searchQueries = buildSearchQueries(item);
-  const model = getOpenAIEvidenceModel();
+async function researchCandidates(
+  apiKey: string,
+  model: string,
+  item: IdentifiedItem,
+  searchQueries: string[],
+  signal?: AbortSignal,
+): Promise<CandidateListing[]> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -79,11 +81,60 @@ Only use individual used listings for the same item/variant whose source explici
     throw new ApiError("VALUATION_FAILED");
   }
   const payload = await response.json() as OpenAIResponse;
-  const candidates = parseOpenAICandidates(responseText(payload));
-  const comparables = validateCandidates(item, candidates).map(c => ({
-    title: c.title, price: c.price, currency: c.currency, source: c.source, url: c.url,
-    variantMatch: c.variantMatch, freshness: c.freshness,
+  return parseOpenAICandidates(responseText(payload));
+}
+
+export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: AbortSignal): Promise<MarketEvidence> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) throw new ApiError("SERVICE_NOT_CONFIGURED");
+  const model = getOpenAIEvidenceModel();
+  const queryPasses = [
+    buildSearchQueries(item),
+    buildBroaderSearchQueries(item),
+    buildGlobalMarketplaceQueries(item),
+  ];
+
+  const allCandidates: CandidateListing[] = [];
+  const seenUrls = new Set<string>();
+  let searchQueries = queryPasses[0] ?? [];
+
+  for (let pass = 0; pass < queryPasses.length; pass += 1) {
+    const queries = queryPasses[pass] ?? [];
+    searchQueries = [...new Set([...searchQueries, ...queries])];
+    const candidates = await researchCandidates(apiKey, model, item, queries, signal);
+    for (const candidate of candidates) {
+      if (!candidate.url || seenUrls.has(candidate.url)) continue;
+      seenUrls.add(candidate.url);
+      allCandidates.push(candidate);
+    }
+
+    const accepted = validateCandidates(item, allCandidates);
+    console.info(JSON.stringify({
+      event: "market_evidence_pass",
+      provider: "openai",
+      model,
+      pass: pass + 1,
+      extracted: allCandidates.length,
+      accepted: accepted.length,
+    }));
+    if (accepted.length >= 2) break;
+  }
+
+  const comparables = validateCandidates(item, allCandidates).map(candidate => ({
+    title: candidate.title,
+    price: candidate.price,
+    currency: candidate.currency,
+    source: candidate.source,
+    url: candidate.url,
+    variantMatch: candidate.variantMatch,
+    freshness: candidate.freshness,
   }));
-  console.info(JSON.stringify({ event: "market_evidence", provider: "openai", model, extracted: candidates.length, accepted: comparables.length }));
+  console.info(JSON.stringify({
+    event: "market_evidence",
+    provider: "openai",
+    model,
+    extracted: allCandidates.length,
+    accepted: comparables.length,
+  }));
   return { searchQueries, comparables };
 }
