@@ -37,16 +37,16 @@ export function calculateConfidence(
     // should not be reported as 0% when identification and estimation both
     // succeeded. Keep it capped below "high" and weight identity alongside
     // the estimator's self-confidence.
-    if (evidence.comparables.length === 0) {
-    return { score: 0, level: "low" };
-  }
-
-  const idScore = clamp(identification.identificationConfidence, 0, 1);
+    const idScore = clamp(identification.identificationConfidence, 0, 1);
     const score = clamp(idScore * 0.2 + clamp(aiConfidence, 0, 1) * 0.3, 0, 0.49);
     return {
       score: Math.round(score * 100) / 100,
       level: score >= 0.45 ? "medium" : "low",
     };
+  }
+
+  if (evidence.comparables.length === 0) {
+    return { score: 0, level: "low" };
   }
 
   const idScore = clamp(identification.identificationConfidence, 0, 1);
