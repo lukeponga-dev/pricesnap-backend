@@ -23,7 +23,7 @@ test("internal pipeline preserves Android contract and accepts image alias", asy
   const handler = createValuateHandler((data, mime, options) => {
     assert.equal(data, "aGVsbG8="); assert.equal(mime, "image/jpeg");
     return runEngine(data, mime, options, deps);
-  }, async () => {});
+  });
   const response = await handler(new Request("https://backend.test/api/valuate", {
     method: "POST", body: JSON.stringify({ image: "aGVsbG8=" }),
   }));
