@@ -1,10 +1,21 @@
 import { ApiError, apiErrorResponse } from "./errors";
 import { validateValuateRequest } from "../validation/valuate-request";
 import { valuateImage } from "../valuation-engine";
+import { verifyFirebaseRequest } from "./auth";
+import { enforceValuationLimit } from "./rate-limit";
 
-export function createValuateHandler(engine = valuateImage) {
+async function enforceAccess(request: Request): Promise<void> {
+  const caller = await verifyFirebaseRequest(request);
+  enforceValuationLimit(caller);
+}
+
+export function createValuateHandler(engine = valuateImage, authorize: (request: Request) => Promise<void> = enforceAccess) {
   return async (request: Request): Promise<Response> => {
     try {
+      // Authentication, attestation and spend controls must complete before
+      // parsing the image or making any provider call.
+      await authorize(request);
+
       let body: unknown;
       try {
         body = await request.json();

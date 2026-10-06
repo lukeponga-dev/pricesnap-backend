@@ -84,6 +84,44 @@ Only use individual used listings for the same item/variant whose source explici
   return parseOpenAICandidates(responseText(payload));
 }
 
+function priceAppearsInSource(body: string, candidate: CandidateListing): boolean {
+  const normalized = body.replace(/&nbsp;|&#160;/gi, " ").replace(/\\s+/g, " ").toUpperCase();
+  const plain = candidate.price.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 2 });
+  const grouped = candidate.price.toLocaleString("en-US", { useGrouping: true, maximumFractionDigits: 2 });
+  const currencyMarkers = candidate.currency === "NZD" ? ["NZD", "NZ$"] : ["USD", "US$"];
+  for (const amount of new Set([plain, grouped])) {
+    let index = normalized.indexOf(amount.toUpperCase());
+    while (index >= 0) {
+      const nearby = normalized.slice(Math.max(0, index - 24), index + amount.length + 24);
+      if (currencyMarkers.some(marker => nearby.includes(marker))) return true;
+      index = normalized.indexOf(amount.toUpperCase(), index + amount.length);
+    }
+  }
+  return false;
+}
+
+async function verifyCandidateSource(candidate: CandidateListing, signal?: AbortSignal): Promise<boolean> {
+  try {
+    if (!candidate.url) return false;
+    const source = new URL(candidate.url);
+    if (source.protocol !== "https:" || source.username || source.password) return false;
+    const response = await fetch(source, {
+      method: "GET", redirect: "follow",
+      signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(7_000)]),
+      headers: { "User-Agent": "PriceSnapEvidenceVerifier/1.0" },
+    });
+    if (!response.ok) return false;
+    const finalUrl = new URL(response.url);
+    if (source.hostname.replace(/^www\\./, "") !== finalUrl.hostname.replace(/^www\\./, "")) return false;
+    const body = (await response.text()).slice(0, 1_500_000);
+    return priceAppearsInSource(body, candidate);
+  } catch { return false; }
+}
+
+async function verifyCandidateSources(candidates: CandidateListing[], signal?: AbortSignal): Promise<CandidateListing[]> {
+  const checked = await Promise.all(candidates.map(async candidate => ({ candidate, verified: await verifyCandidateSource(candidate, signal) })));
+  return checked.filter(result => result.verified).map(result => result.candidate);
+}
 export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: AbortSignal): Promise<MarketEvidence> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new ApiError("SERVICE_NOT_CONFIGURED");
@@ -108,7 +146,8 @@ export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: Ab
       allCandidates.push(candidate);
     }
 
-    const accepted = validateCandidates(item, allCandidates);
+    const sourceVerified = await verifyCandidateSources(allCandidates, signal);
+    const accepted = validateCandidates(item, sourceVerified);
     console.info(JSON.stringify({
       event: "market_evidence_pass",
       provider: "openai",
@@ -120,7 +159,8 @@ export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: Ab
     if (accepted.length >= 2) break;
   }
 
-  const comparables = validateCandidates(item, allCandidates).map(candidate => ({
+  const sourceVerified = await verifyCandidateSources(allCandidates, signal);
+  const comparables = validateCandidates(item, sourceVerified).map(candidate => ({
     title: candidate.title,
     price: candidate.price,
     currency: candidate.currency,
@@ -134,6 +174,7 @@ export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: Ab
     provider: "openai",
     model,
     extracted: allCandidates.length,
+    sourceVerified: sourceVerified.length,
     accepted: comparables.length,
   }));
   return { searchQueries, comparables };
