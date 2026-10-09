@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Billing state and usage ledger are backend-only. Firebase Admin SDK bypasses
+    // these rules; server routes MUST verify Firebase ID tokens and ownership.
+    match /businessCustomers/{uid} {
+      allow read, write: if false;
+    }
+    match /billingEvents/{eventId} {
+      allow read, write: if false;
+    }
+    match /valuationUsage/{usageId} {
+      allow read, write: if false;
+    }
+  }
+}
