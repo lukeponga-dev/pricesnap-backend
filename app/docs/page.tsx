@@ -3,7 +3,7 @@ export default function DocsPage() {
     <div>
       <header className="mb-16">
         <span className="font-mono text-[0.65rem] uppercase opacity-50 tracking-[0.1em]">v1.0.0 / System Console</span>
-        <h1 className="text-[3.5rem] font-extrabold tracking-[-0.04em] mb-8 text-white">PriceSnap Backend</h1>
+        <h1 className="text-4xl md:text-[3.5rem] font-extrabold tracking-[-0.04em] mb-8 text-white">PriceSnap Backend</h1>
       </header>
 
       <section id="overview">

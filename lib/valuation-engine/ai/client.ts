@@ -4,7 +4,7 @@ import { ApiError } from "../../api/errors";
 export const ENGINE_VERSION = "internal-1.0.0";
 
 export function getModel(): string {
-  return process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
+  return process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
 }
 
 /** Market-evidence model. Search grounding on current Gemini 3.x models requires paid API access. */
