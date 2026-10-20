@@ -36,7 +36,7 @@ test("market valuation uses median and marks market evidence", async () => {
 });
 
 test("empty evidence cannot produce a synthetic price", async () => {
-  await assert.throws(async () => await calculateValuation([], 1.0), /Insufficient market evidence/);
+  await assert.rejects(async () => await calculateValuation([], 1.0), /Insufficient market evidence/);
 });
 
 test("unknown-like values normalize to absence", () => {

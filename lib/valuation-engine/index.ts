@@ -6,12 +6,51 @@ import { calculateValuation } from "./pricing";
 import { calculateConfidence } from "./confidence";
 import { getEvidenceModel, getVisionModel, getAiClient, withGeminiRetry } from "./ai/client";
 import { getUsdToNzdRate } from "./currency";
-import type { AppraisalResponse } from "./types";
+import type { AppraisalResponse, IdentifiedItem } from "./types";
 
 export interface EngineOptions { signal?: AbortSignal; requestId?: string }
+export interface HeuristicEstimate {
+  estimatedValue: number;
+  low?: number;
+  high?: number;
+  currency?: "USD" | "NZD";
+  selfConfidence?: number;
+}
 export interface EngineDependencies {
   identify: typeof identifyItem;
   evidence: typeof findMarketEvidence;
+  estimateHeuristic?: (
+    item: IdentifiedItem,
+    comparables: unknown[],
+    signal?: AbortSignal,
+  ) => Promise<HeuristicEstimate | null>;
+}
+
+async function defaultEstimateHeuristic(
+  identified: IdentifiedItem,
+  comparables: unknown[],
+  signal?: AbortSignal,
+): Promise<HeuristicEstimate | null> {
+  try {
+    const ai = getAiClient();
+    const model = getEvidenceModel();
+    const estimate = await withGeminiRetry(
+      () => ai.models.generateContent({
+        model,
+        contents: `Estimate the current second-hand resell value for this item: ${JSON.stringify(identified.item)}.
+Condition: ${JSON.stringify(identified.condition)}.
+Available evidence: ${JSON.stringify(comparables)}.
+Return ONLY a JSON object: {"estimatedValue": number, "low": number, "high": number, "currency": "USD"|"NZD", "selfConfidence": number}.
+Base your estimate on general market knowledge of the brand and model if listings are scarce.`,
+        config: { responseMimeType: "application/json" },
+      }),
+      model,
+      signal,
+    );
+    return JSON.parse(estimate.text ?? "");
+  } catch {
+    return null;
+  }
 }
 
 function configuredEvidence() {
@@ -97,8 +136,6 @@ function logStage(
   else console.info(entry);
 }
 
-const USD_TO_NZD = 1.65;
-
 function normalizeToNZD(value: number | null, currency: string, rate: number): number | null {
   if (value === null) return null;
   return currency === "USD" ? Math.round(value * rate) : value;
@@ -109,7 +146,11 @@ export async function runEngine(
   imageBase64: string,
   mimeType = "image/jpeg",
   options: EngineOptions = {},
-  dependencies: EngineDependencies = { identify: identifyItem, evidence: configuredEvidence() },
+  dependencies: EngineDependencies = {
+    identify: identifyItem,
+    evidence: configuredEvidence(),
+    estimateHeuristic: defaultEstimateHeuristic,
+  },
 ): Promise<AppraisalResponse> {
   const requestId = options.requestId ?? crypto.randomUUID();
   const engineStartedAt = Date.now();
@@ -157,44 +198,35 @@ export async function runEngine(
     logStage("info", requestId, "pricing", "start", pricingStartedAt, "deterministic");
     
     const rate = await getUsdToNzdRate();
-    let enough = evidence.comparables.length >= 2;
+    const enough = evidence.comparables.length >= 2;
     let valuation;
     let isHeuristic = false;
     let aiConfidence = 0;
 
     if (enough) {
       valuation = await calculateValuation(evidence.comparables, rate);
-    } else {
+    } else if (dependencies.estimateHeuristic) {
       // Fallback to AI estimation when grounded evidence is insufficient
       try {
-        const ai = getAiClient();
-        const model = getEvidenceModel();
-        const estimate = await withGeminiRetry(
-          () => ai.models.generateContent({
-            model,
-            contents: `Estimate the current second-hand resell value for this item: ${JSON.stringify(identified.item)}.
-Condition: ${JSON.stringify(identified.condition)}.
-Available evidence: ${JSON.stringify(evidence.comparables)}.
-Return ONLY a JSON object: {"estimatedValue": number, "low": number, "high": number, "currency": "USD"|"NZD", "selfConfidence": number}.
-Base your estimate on general market knowledge of the brand and model if listings are scarce.`,
-            config: { responseMimeType: "application/json" },
-          }),
-          model,
-          controller.signal,
-        );
-        const parsed = JSON.parse(estimate.text ?? "");
-        const currency = parsed.currency || "USD";
-        valuation = {
-          currency: "NZD" as const,
-          estimatedValue: normalizeToNZD(parsed.estimatedValue, currency, rate),
-          low: normalizeToNZD(parsed.low, currency, rate),
-          high: normalizeToNZD(parsed.high, currency, rate),
-        };
-        isHeuristic = true;
-        aiConfidence = parsed.selfConfidence ?? 0;
-      } catch (error) {
+        const parsed = await dependencies.estimateHeuristic(identified, evidence.comparables, controller.signal);
+        if (parsed && typeof parsed.estimatedValue === "number") {
+          const currency = parsed.currency || "USD";
+          valuation = {
+            currency: "NZD" as const,
+            estimatedValue: normalizeToNZD(parsed.estimatedValue, currency, rate),
+            low: normalizeToNZD(parsed.low ?? Math.round(parsed.estimatedValue * 0.85), currency, rate),
+            high: normalizeToNZD(parsed.high ?? Math.round(parsed.estimatedValue * 1.15), currency, rate),
+          };
+          isHeuristic = true;
+          aiConfidence = parsed.selfConfidence ?? 0;
+        } else {
+          valuation = { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
+        }
+      } catch {
         valuation = { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
       }
+    } else {
+      valuation = { currency: "NZD" as const, estimatedValue: null, low: null, high: null };
     }
 
     logStage("info", requestId, "pricing", "success", pricingStartedAt, "deterministic", {

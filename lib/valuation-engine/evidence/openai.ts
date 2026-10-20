@@ -22,9 +22,9 @@ export function parseOpenAICandidates(text: string): CandidateListing[] {
       if (!row || typeof row !== "object") return [];
       const v = row as Record<string, unknown>;
       if (typeof v.title !== "string" || typeof v.price !== "number" || 
-          (v.currency !== "NZD" && v.currency !== "USD") ||
+          v.currency !== "NZD" ||
           typeof v.url !== "string" || !v.url.startsWith("https://")) return [];
-      return [{ title: v.title, price: v.price, currency: v.currency as "NZD" | "USD",
+      return [{ title: v.title, price: v.price, currency: "NZD",
         source: typeof v.source === "string" ? v.source : new URL(v.url).hostname,
         url: v.url, listedAt: typeof v.listedAt === "string" ? v.listedAt : undefined }];
     });

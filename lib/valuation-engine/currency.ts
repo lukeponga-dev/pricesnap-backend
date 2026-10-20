@@ -1,5 +1,3 @@
-import { ApiError } from "../api/errors";
-
 let cachedRate: number | null = null;
 let lastFetch: number = 0;
 const CACHE_TTL = 86_400_000; 

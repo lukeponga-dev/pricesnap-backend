@@ -3,7 +3,7 @@ import { parseModelJson } from "../ai/parse-json";
 import type { CandidateListing, IdentifiedItem, MarketEvidence } from "../types";
 import { buildSearchQueries, buildBroaderSearchQueries, buildGlobalMarketplaceQueries } from "./queries";
 import { validateCandidates } from "./validate";
-import type { GroundingMetadata } from "@google/genai";
+import type { GroundingMetadata, GenerateContentResponse } from "@google/genai";
 
 /** Require a cited claim containing the actual title, currency and price. */
 export function groundedCandidates(payload: unknown, grounding?: GroundingMetadata): CandidateListing[] {
@@ -46,7 +46,7 @@ export function groundedCandidates(payload: unknown, grounding?: GroundingMetada
   });
 }
 
-async function performResearch(item: IdentifiedItem, queries: string[], signal?: AbortSignal): Promise<{ research: any, grounding: GroundingMetadata | undefined }> {
+async function performResearch(item: IdentifiedItem, queries: string[], signal?: AbortSignal): Promise<{ research: GenerateContentResponse, grounding: GroundingMetadata | undefined }> {
   const ai = getAiClient();
   const model = getEvidenceModel();
   const research = await withGeminiRetry(
@@ -111,7 +111,7 @@ ${JSON.stringify({ text: research.text, grounding })}`,
     model,
     signal,
   );
-  const extracted = parseModelJson<any>(extraction.text);
+  const extracted = parseModelJson<unknown>(extraction.text);
   const candidates = groundedCandidates(extracted, grounding);
   const comparables = validateCandidates(item, candidates).map(c => ({
     title: c.title, price: c.price, currency: c.currency, source: c.source, url: c.url,
