@@ -8,6 +8,7 @@
  */
 import type { CandidateListing, IdentifiedItem } from "../types";
 import { clamp } from "../ai/parse-json";
+import { getUsdToNzdRate } from "../currency";
 
 /** Titles that look like accessory-only listings rather than the main item. */
 const ACCESSORY_TERMS = [
@@ -42,15 +43,22 @@ const MIN_VARIANT_MATCH = 0.35;
 /**
  * Filter and score raw candidates. Returns only listings safe to price on.
  */
-export function validateCandidates(
+export async function validateCandidates(
   item: IdentifiedItem,
   candidates: CandidateListing[],
-): Array<CandidateListing & { variantMatch: number; freshness: number }> {
+): Promise<Array<CandidateListing & { variantMatch: number; freshness: number }>> {
   const results = [];
+  const usdRate = await getUsdToNzdRate();
 
   for (const candidate of candidates) {
+    let { price, currency } = candidate;
     const title = candidate.title ?? "";
     const titleLower = title.toLowerCase();
+
+    if (currency === "USD") {
+        price *= usdRate;
+        currency = "NZD";
+    }
 
     const identity = item.item.model || item.item.name;
     if (!containsTokens(titleLower, identity.toLowerCase())) continue;
@@ -58,11 +66,11 @@ export function validateCandidates(
     if (isAccessoryOnlyListing(item, titleLower)) continue;
     if (BROKEN_RE.test(title)) continue;
     if (NEW_RETAIL_RE.test(title)) continue;
-    if (candidate.currency !== "NZD") {
+    if (currency !== "NZD") {
       continue;
     }
     if (INTL_CURRENCY_RE.test(title)) continue;
-    if (!Number.isFinite(candidate.price) || candidate.price <= 0) continue;
+    if (!Number.isFinite(price) || price <= 0) continue;
 
     const variantMatch = scoreVariantMatch(item, titleLower);
     if (variantMatch < MIN_VARIANT_MATCH) continue;
@@ -71,6 +79,7 @@ export function validateCandidates(
 
     results.push({
       ...candidate,
+      price,
       currency: "NZD",
       variantMatch,
       freshness,

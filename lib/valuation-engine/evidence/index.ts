@@ -113,7 +113,7 @@ ${JSON.stringify({ text: research.text, grounding })}`,
   );
   const extracted = parseModelJson<unknown>(extraction.text);
   const candidates = groundedCandidates(extracted, grounding);
-  const comparables = validateCandidates(item, candidates).map(c => ({
+  const comparables = (await validateCandidates(item, candidates)).map(c => ({
     title: c.title, price: c.price, currency: c.currency, source: c.source, url: c.url,
     variantMatch: c.variantMatch, freshness: c.freshness,
   }));

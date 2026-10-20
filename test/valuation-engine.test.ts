@@ -79,8 +79,8 @@ test("queries preserve model and include an alternative without cosmetic attribu
   assert.ok(queries.some(query => !query.includes("silver")));
 });
 
-test("candidate filtering is item-aware for accessories", () => {
-  const candidates = validateCandidates(item, [
+test("candidate filtering is item-aware for accessories", async () => {
+  const candidates = await validateCandidates(item, [
     listing("iPhone 13 Pro 256GB with case", 650),
     listing("iPhone 13 Pro leather case", 25),
   ]);
@@ -89,8 +89,8 @@ test("candidate filtering is item-aware for accessories", () => {
   assert.equal(candidates[0].title, "iPhone 13 Pro 256GB with case");
 });
 
-test("candidate filtering allows accessories when target item is an accessory", () => {
-  const candidates = validateCandidates(
+test("candidate filtering allows accessories when target item is an accessory", async () => {
+  const candidates = await validateCandidates(
     {
       ...item,
       item: {
@@ -131,8 +131,8 @@ function listing(title: string, price: number) {
 
 
 
-test("rejects missing currency, unrelated products and conflicting storage", () => {
-  assert.deepEqual(validateCandidates(item, [
+test("rejects missing currency, unrelated products and conflicting storage", async () => {
+  assert.deepEqual(await validateCandidates(item, [
     { ...listing("iPhone 13 Pro 256GB", 600), currency: "" },
     listing("Samsung Galaxy 256GB", 600),
     listing("iPhone 13 Pro 128GB", 600),

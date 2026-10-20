@@ -98,7 +98,8 @@ export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: Ab
   ];
 
   const allCandidates = await researchCandidates(apiKey, model, item, searchQueries, signal);
-  const comparables = validateCandidates(item, allCandidates).map((candidate) => ({
+  const validated = await validateCandidates(item, allCandidates);
+  const comparables = validated.map((candidate) => ({
     title: candidate.title,
     price: candidate.price,
     currency: candidate.currency,
