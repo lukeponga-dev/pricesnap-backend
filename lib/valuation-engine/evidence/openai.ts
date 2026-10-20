@@ -88,39 +88,17 @@ export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: Ab
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new ApiError("SERVICE_NOT_CONFIGURED");
   const model = getOpenAIEvidenceModel();
-  const queryPasses = [
-    buildSearchQueries(item),
-    buildBroaderSearchQueries(item),
-    buildGlobalMarketplaceQueries(item),
+  
+  const searchQueries = [
+    ...new Set([
+      ...buildSearchQueries(item),
+      ...buildBroaderSearchQueries(item),
+      ...buildGlobalMarketplaceQueries(item),
+    ]),
   ];
 
-  const allCandidates: CandidateListing[] = [];
-  const seenUrls = new Set<string>();
-  let searchQueries = queryPasses[0] ?? [];
-
-  for (let pass = 0; pass < queryPasses.length; pass += 1) {
-    const queries = queryPasses[pass] ?? [];
-    searchQueries = [...new Set([...searchQueries, ...queries])];
-    const candidates = await researchCandidates(apiKey, model, item, queries, signal);
-    for (const candidate of candidates) {
-      if (!candidate.url || seenUrls.has(candidate.url)) continue;
-      seenUrls.add(candidate.url);
-      allCandidates.push(candidate);
-    }
-
-    const accepted = validateCandidates(item, allCandidates);
-    console.info(JSON.stringify({
-      event: "market_evidence_pass",
-      provider: "openai",
-      model,
-      pass: pass + 1,
-      extracted: allCandidates.length,
-      accepted: accepted.length,
-    }));
-    if (accepted.length >= 2) break;
-  }
-
-  const comparables = validateCandidates(item, allCandidates).map(candidate => ({
+  const allCandidates = await researchCandidates(apiKey, model, item, searchQueries, signal);
+  const comparables = validateCandidates(item, allCandidates).map((candidate) => ({
     title: candidate.title,
     price: candidate.price,
     currency: candidate.currency,
@@ -129,6 +107,7 @@ export async function findOpenAIMarketEvidence(item: IdentifiedItem, signal?: Ab
     variantMatch: candidate.variantMatch,
     freshness: candidate.freshness,
   }));
+  
   console.info(JSON.stringify({
     event: "market_evidence",
     provider: "openai",

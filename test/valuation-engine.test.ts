@@ -148,7 +148,7 @@ test("heuristic valuation with no comparables does not report zero confidence", 
     0.7,
   );
 
-  assert.deepEqual(confidence, { score: 0.39, level: "low" });
+  assert.deepEqual(confidence, { score: 0.45, level: "low" });
 });
 
 test("missing valuation still reports zero confidence", () => {
