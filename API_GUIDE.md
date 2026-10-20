@@ -73,6 +73,41 @@ Based on `ValuateRequest` (see `lib/validation/valuate-request.ts`). Typically i
 
 Provides a strategic pricing recommendation for selling an item based on its valuation.
 
+**Request Body**
+```json
+{
+  "imageBase64": "...",
+  "mimeType": "image/jpeg",
+  "preferences": {
+    "marketplace": "Trade Me",
+    "notes": "Includes original box"
+  }
+}
+```
+
+**Response Body (`ResaleResponse`)**
+```json
+{
+  "ok": true,
+  "status": "success" | "insufficient_evidence" | "heuristic",
+  "valuation": { ... },
+  "saleStrategy": {
+    "currency": "NZD",
+    "suggestedListingPrice": 570,
+    "targetSalePrice": 520,
+    "minimumNegotiationPrice": 470,
+    "basis": "evidence_derived"
+  },
+  "listing": {
+    "title": "...",
+    "description": "...",
+    "provider": "openai" | "deterministic"
+  },
+  "negotiationGuidance": ["..."],
+  "listingChecklist": ["..."]
+}
+```
+
 ---
 
 ### 3. Connection Status

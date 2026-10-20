@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 
 interface BackendStatus {
   status: string;
@@ -655,6 +656,7 @@ export default function Home() {
                 <span className="text-[11px] font-mono text-slate-400 border border-slate-800 px-1.5 py-0.5 rounded bg-slate-900/80">
                   v0.1.0
                 </span>
+                <a href="/docs" className="text-xs text-cyan-400 hover:text-cyan-300 ml-2 font-medium">Docs</a>
               </div>
               <p className="text-xs text-slate-400">Valuation Engine, Resale Agent & Client API</p>
             </div>
@@ -709,6 +711,7 @@ export default function Home() {
               Auto ({countdown}s)
             </button>
 
+            <Link href="/docs" className="text-slate-400 hover:text-white transition-colors text-xs font-medium mr-4">Docs</Link>
             {/* Refresh Button */}
             <button
               onClick={() => checkConnection(true)}
